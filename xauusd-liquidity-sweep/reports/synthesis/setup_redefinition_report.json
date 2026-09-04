@@ -1,0 +1,115 @@
+{
+  "meta": {
+    "report_title": "Setup Redefinition Synthesis Report — XAUUSD M15 Liquidity Sweep",
+    "date": "2026-09-04",
+    "dataset": "frozen v1.2.0",
+    "n_total": 974,
+    "n_net_valid": 973,
+    "source_phase": "Phase 1 analysis (t7) + gate t8 QA review"
+  },
+  "section1_root_cause": {
+    "exit_reason_breakdown_whole_pool": {
+      "target": { "n": 177, "share": 0.1819, "avg_r": 2.0, "contribution_to_expectancy": 0.3638 },
+      "stop": { "n": 448, "share": 0.4604, "avg_r": -1.0, "contribution_to_expectancy": -0.4604 },
+      "time": { "n": 348, "share": 0.3577, "avg_r": 0.3092, "contribution_to_expectancy": 0.1106 }
+    },
+    "whole_pool_expectancy_cost_0": 0.014,
+    "whole_pool_expectancy_cost_0_05": -0.036,
+    "whole_pool_pf_cost_0": 1.0279,
+    "whole_pool_pf_cost_0_05": 0.9322,
+    "edge_killer_summary": {
+      "reason_1": "Cấu trúc R:R +2/-1 thiếu robust — stop rate 46% phá hủy target rate 18.2%",
+      "reason_2": "sweep_cung_chieu chiếm 71.8% pool và PF < 1 ở cost=0 (PF 0.98)",
+      "reason_3": "Breakeven cost cực thấp 0.014R — cost thực tế bất kỳ cũng giết edge",
+      "reason_4": "Time-out là lifeline duy nhất — zero_time_exits làm PF rơi từ 1.03 xuống 0.79"
+    },
+    "score_bucket_comparison": {
+      "bucket_0_39": { "n": 782, "pf": 0.9914, "avg_r": -0.0045, "stop_rate": 0.4866, "target_rate": 0.189 },
+      "bucket_40_49": { "n": 188, "pf": 1.23, "avg_r": 0.0919, "stop_rate": 0.3511, "target_rate": 0.1543 },
+      "finding": "Edge bucket 40-49 đến từ stop rate thấp hơn (48.7%→35.1%), không phải target tốt hơn"
+    },
+    "trend_context": {
+      "sweep_cung_chieu": { "n": 698, "pf": 0.9804, "avg_r": -0.0098, "breakeven_cost": 0.0, "pct_of_pool": 0.718 },
+      "sweep_nguoc": { "n": 275, "pf": 1.1488, "avg_r": 0.0745, "breakeven_cost": 0.0745, "pct_of_pool": 0.282 },
+      "cung_rule_40_49": { "n": 133, "pf": 1.1543, "avg_r": 0.0636, "breakeven_cost": 0.0636 },
+      "nguoc_rule_40_49": { "n": 55, "pf": 1.4341, "avg_r": 0.1605, "breakeven_cost": 0.1605 },
+      "time_rate_z_test": { "z": 1.8353, "p": 0.0665, "significant": false }
+    }
+  },
+  "section2_breakeven_map": {
+    "breakeven_summary": {
+      "whole_pool": { "breakeven_cost": 0.014, "expectancy_at_0_05r": -0.036, "pf_at_0_05r": 0.9322 },
+      "rule_40_49": { "breakeven_cost": 0.0919, "expectancy_at_0_05r": 0.0419, "pf_at_0_05r": 1.0986, "edge_survives": true },
+      "top_prob_ge_0.25": { "breakeven_cost": 0.1619, "expectancy_at_0_05r": 0.1119, "pf_at_0_05r": 1.1999, "edge_survives": true },
+      "top_prob_ge_0.20": { "breakeven_cost": 0.0897, "expectancy_at_0_05r": 0.0397, "pf_at_0_05r": 1.0694, "edge_survives": true },
+      "sweep_nguoc": { "breakeven_cost": 0.0745, "expectancy_at_0_05r": 0.0245, "pf_at_0_05r": 1.0463, "edge_survives": true },
+      "level_type_swing": { "breakeven_cost": 0.0382, "expectancy_at_0_05r": -0.0118, "pf_at_0_05r": 0.9771, "edge_survives": false },
+      "level_type_equal": { "breakeven_cost": 0.0051, "expectancy_at_0_05r": -0.0449, "pf_at_0_05r": 0.9173, "edge_survives": false },
+      "level_type_prev_day": { "breakeven_cost": 0.0, "expectancy_at_0_05r": -0.5475, "pf_at_0_05r": 0.2486, "edge_survives": false },
+      "sweep_cung_chieu": { "breakeven_cost": 0.0, "expectancy_at_0_05r": -0.0598, "pf_at_0_05r": 0.8875, "edge_survives": false }
+    }
+  },
+  "section3_param_sensitivity": {
+    "ranking": [
+      { "rank": 1, "param": "max_penetration_atr", "current": 0.5, "best": 0.2, "pf_change": "1.03→1.29", "n_impact": "973→396 (-59%)", "avg_r": 0.1311, "ci95_significant": [1.0333, 1.6042] },
+      { "rank": 2, "param": "time_barrier_policy", "current": "mark_to_market", "best": "time_as_0.5R (simulated)", "pf_change": "1.03→1.18", "n_impact": "973 unchanged", "avg_r": 0.0822, "note": "Policy giả định, không trade real. Cho thấy MTM là lifeline." },
+      { "rank": 3, "param": "min_penetration_atr", "current": 0.05, "best": 0.05, "pf_change": "1.03→0.99 @0.10", "n_impact": "973→853 (-12%)", "action": "giữ nguyên" },
+      { "rank": 4, "param": "min_wick_ratio", "current": 0.35, "best": 0.35, "pf_change": "1.03→0.99 @0.45", "n_impact": "973→700 (-28%)", "action": "giữ nguyên" },
+      { "rank": 5, "param": "min_reclaim_atr", "current": 0.0, "best": "0.0–0.15 (flat)", "pf_change": "~1.03 (all)", "n_impact": "minimal", "action": "non-factor, giữ 0.00" }
+    ],
+    "combo_analysis": {
+      "rule_40_49_max_pen_020": { "n": 77, "fraction": 0.0791, "pf": 1.4999, "avg_r": 0.1705, "ci95": [0.8664, 2.5515] },
+      "rule_40_49_max_pen_020_wick_035": { "n": 77, "fraction": 0.0791, "pf": 1.4999, "avg_r": 0.1705, "ci95": [0.8682, 2.537] }
+    }
+  },
+  "section4_recommendations": {
+    "stop_current_pipeline": {
+      "action": "DỪNG trade live setup Liquidity Sweep hiện tại",
+      "reason": "Expectancy -0.036R ở cost 0.05R, PF 0.93 < 1, sweep_cung_chieu 72% pool âm"
+    },
+    "redefined_setup_v2": {
+      "filters": [
+        "sweep_direction = nguoc_trend (follow H1 trend)",
+        "model_score ≥ 0.25 (top_prob) OR rule_calibrated ≥ 40",
+        "max_penetration_atr ≤ 0.20 (hoặc ≤ 0.30)",
+        "wick_ratio ≥ 0.35 (giữ nguyên)",
+        "reclaim_atr ≥ 0.00 (giữ nguyên)",
+        "exit = mark_to_market time barrier, R:R +2/-1"
+      ],
+      "expected_metrics_estimate": {
+        "n_events": "50–80 trên 974 gốc",
+        "estimated_pf": "1.35–1.50",
+        "estimated_avg_r": "+0.15–0.17R",
+        "estimated_win_rate": "45–50%",
+        "caveat": "95% CI rộng do sample nhỏ — cần xác định lại trên dataset dài hơn hoặc out-of-sample"
+      }
+    },
+    "cost_model_adjustment": {
+      "mandatory": "Sử dụng cost 0.05R trong mọi forward test",
+      "recommended_test": "cost 0.03R nếu broker ưu đãi",
+      "warning": "Không trade ở assumption cost < 0.01R — breakeven thực tế toàn pool 0.014R"
+    },
+    "rr_consideration": {
+      "current": "+2/-1",
+      "recommendation": "Nghiên cứu R:R +1.5/-1 hoặc partial take-profit để cải thiện win rate và survivorship"
+    },
+    "next_steps": [
+      "Xác định lại event definition v2 trên dataset dài hơn (out-of-sample)",
+      "Walk-forward validate filter stack v2 với cost 0.05R",
+      "Nếu PF > 1.20, avg > 0.05R sau cost → xem xét trade live với sizing nhỏ",
+      "Nếu không, đóng pipeline Liquidity Sweep hoàn toàn"
+    ]
+  },
+  "limitations": {
+    "sample_size": "973 net-valid events — combo subset (rule_40_49+nguoc+max_pen) chỉ 77 events, CI95 rất rộng",
+    "time_period": "Dataset từ 2024–2025 — cần out-of-sample validation",
+    "cost_assumption": "Cost 0.05R dựa trên XAUUSD spread+commission ước lượng; cần tính chính xác theo broker",
+    "model_stability": "Score từ ML model có thể thay đổi khi retrain — cần kiểm tra calibration consistency",
+    "regime_shift": "Thị trường 2024–2025 có thể khác với forward; cần regime detection"
+  },
+  "frozen_guard": {
+    "n_frozen_md5_checked": 13,
+    "all_pass": true,
+    "baseline_frozen_v1_2_0": "intact, not modified"
+  }
+}

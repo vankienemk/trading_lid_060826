@@ -1,0 +1,278 @@
+{
+  "score_buckets": [
+    {
+      "bucket": "0-39",
+      "n_net": 782,
+      "n_total": 783,
+      "overall": {
+        "n_net": 782,
+        "profit_factor": 0.9914,
+        "pf_ci95": [
+          0.8423,
+          1.1572
+        ],
+        "avg_net_r": -0.0045,
+        "avg_net_r_ci95": [
+          -0.0873,
+          0.0811
+        ],
+        "net_positive_rate": 0.4054,
+        "net_positive_rate_wilson_ci95": [
+          0.3715,
+          0.4402
+        ],
+        "n_total": 783
+      },
+      "exit_reason_breakdown": [
+        {
+          "n_net": 148,
+          "profit_factor": null,
+          "pf_ci95": null,
+          "avg_net_r": 2.0,
+          "avg_net_r_ci95": [
+            2.0,
+            2.0
+          ],
+          "net_positive_rate": 1.0,
+          "net_positive_rate_wilson_ci95": [
+            0.9747,
+            1.0
+          ],
+          "share_of_total": 0.189,
+          "share_of_net": 0.1893,
+          "exit_reason": "target",
+          "contribution_to_expectancy": 0.3785
+        },
+        {
+          "n_net": 381,
+          "profit_factor": 0.0,
+          "pf_ci95": [
+            0.0,
+            0.0
+          ],
+          "avg_net_r": -1.0,
+          "avg_net_r_ci95": [
+            -1.0,
+            -1.0
+          ],
+          "net_positive_rate": 0.0,
+          "net_positive_rate_wilson_ci95": [
+            0.0,
+            0.01
+          ],
+          "share_of_total": 0.4866,
+          "share_of_net": 0.4872,
+          "exit_reason": "stop",
+          "contribution_to_expectancy": -0.4872
+        },
+        {
+          "n_net": 253,
+          "profit_factor": 3.5891,
+          "pf_ci95": [
+            2.6158,
+            4.9971
+          ],
+          "avg_net_r": 0.322,
+          "avg_net_r_ci95": [
+            0.2427,
+            0.4046
+          ],
+          "net_positive_rate": 0.668,
+          "net_positive_rate_wilson_ci95": [
+            0.6078,
+            0.7231
+          ],
+          "share_of_total": 0.3231,
+          "share_of_net": 0.3235,
+          "exit_reason": "time",
+          "contribution_to_expectancy": 0.1042
+        },
+        {
+          "exit_reason": "ambiguous",
+          "n_net": 0,
+          "share_of_net": 0.0
+        }
+      ]
+    },
+    {
+      "bucket": "40-49",
+      "n_net": 188,
+      "n_total": 188,
+      "overall": {
+        "n_net": 188,
+        "profit_factor": 1.23,
+        "pf_ci95": [
+          0.8691,
+          1.7032
+        ],
+        "avg_net_r": 0.0919,
+        "avg_net_r_ci95": [
+          -0.0597,
+          0.2419
+        ],
+        "net_positive_rate": 0.4894,
+        "net_positive_rate_wilson_ci95": [
+          0.4188,
+          0.5603
+        ],
+        "n_total": 188
+      },
+      "exit_reason_breakdown": [
+        {
+          "n_net": 29,
+          "profit_factor": null,
+          "pf_ci95": null,
+          "avg_net_r": 2.0,
+          "avg_net_r_ci95": [
+            2.0,
+            2.0
+          ],
+          "net_positive_rate": 1.0,
+          "net_positive_rate_wilson_ci95": [
+            0.883,
+            1.0
+          ],
+          "share_of_total": 0.1543,
+          "share_of_net": 0.1543,
+          "exit_reason": "target",
+          "contribution_to_expectancy": 0.3085
+        },
+        {
+          "n_net": 66,
+          "profit_factor": 0.0,
+          "pf_ci95": [
+            0.0,
+            0.0
+          ],
+          "avg_net_r": -1.0,
+          "avg_net_r_ci95": [
+            -1.0,
+            -1.0
+          ],
+          "net_positive_rate": 0.0,
+          "net_positive_rate_wilson_ci95": [
+            0.0,
+            0.055
+          ],
+          "share_of_total": 0.3511,
+          "share_of_net": 0.3511,
+          "exit_reason": "stop",
+          "contribution_to_expectancy": -0.3511
+        },
+        {
+          "n_net": 93,
+          "profit_factor": 3.7579,
+          "pf_ci95": [
+            2.255,
+            6.9216
+          ],
+          "avg_net_r": 0.2719,
+          "avg_net_r_ci95": [
+            0.1618,
+            0.3806
+          ],
+          "net_positive_rate": 0.6774,
+          "net_positive_rate_wilson_ci95": [
+            0.577,
+            0.7638
+          ],
+          "share_of_total": 0.4947,
+          "share_of_net": 0.4947,
+          "exit_reason": "time",
+          "contribution_to_expectancy": 0.1345
+        },
+        {
+          "exit_reason": "ambiguous",
+          "n_net": 0,
+          "share_of_net": 0.0
+        }
+      ]
+    },
+    {
+      "bucket": "50-59",
+      "n_net": 3,
+      "n_total": 3,
+      "overall": {
+        "n_net": 3,
+        "profit_factor": 0.8744,
+        "pf_ci95": [
+          0.0,
+          0.9407
+        ],
+        "avg_net_r": -0.0419,
+        "avg_net_r_ci95": [
+          -1.0,
+          0.4704
+        ],
+        "net_positive_rate": 0.6667,
+        "net_positive_rate_wilson_ci95": [
+          0.2077,
+          0.9385
+        ],
+        "n_total": 3
+      },
+      "exit_reason_breakdown": [
+        {
+          "exit_reason": "target",
+          "n_net": 0,
+          "share_of_net": 0.0
+        },
+        {
+          "n_net": 1,
+          "profit_factor": 0.0,
+          "pf_ci95": [
+            0.0,
+            0.0
+          ],
+          "avg_net_r": -1.0,
+          "avg_net_r_ci95": [
+            -1.0,
+            -1.0
+          ],
+          "net_positive_rate": 0.0,
+          "net_positive_rate_wilson_ci95": [
+            0.0,
+            0.7935
+          ],
+          "share_of_total": 0.3333,
+          "share_of_net": 0.3333,
+          "exit_reason": "stop",
+          "contribution_to_expectancy": -0.3333
+        },
+        {
+          "n_net": 2,
+          "profit_factor": null,
+          "pf_ci95": null,
+          "avg_net_r": 0.4372,
+          "avg_net_r_ci95": [
+            0.4041,
+            0.4704
+          ],
+          "net_positive_rate": 1.0,
+          "net_positive_rate_wilson_ci95": [
+            0.3424,
+            1.0
+          ],
+          "share_of_total": 0.6667,
+          "share_of_net": 0.6667,
+          "exit_reason": "time",
+          "contribution_to_expectancy": 0.2915
+        },
+        {
+          "exit_reason": "ambiguous",
+          "n_net": 0,
+          "share_of_net": 0.0
+        }
+      ]
+    },
+    {
+      "bucket": "60+",
+      "n_net": 0,
+      "n_total": 0,
+      "overall": null,
+      "exit_reason_breakdown": []
+    }
+  ],
+  "n_total": 974,
+  "n_net_valid": 973
+}

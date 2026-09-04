@@ -1,0 +1,613 @@
+{
+  "min_penetration_atr": {
+    "desc": "penetration_atr >= th (cur:0.05)",
+    "baseline": 0.05,
+    "sweep": [
+      {
+        "threshold": 0.03,
+        "n_net": 973,
+        "profit_factor": 1.0279,
+        "pf_ci95": [
+          0.8922,
+          1.1853
+        ],
+        "avg_net_r": 0.014,
+        "avg_net_r_ci95": [
+          -0.0591,
+          0.0876
+        ],
+        "net_positive_rate": 0.4224,
+        "net_positive_rate_wilson_ci95": [
+          0.3917,
+          0.4537
+        ],
+        "n_remaining": 973,
+        "fraction_kept": 1.0
+      },
+      {
+        "threshold": 0.05,
+        "n_net": 973,
+        "profit_factor": 1.0279,
+        "pf_ci95": [
+          0.8922,
+          1.1853
+        ],
+        "avg_net_r": 0.014,
+        "avg_net_r_ci95": [
+          -0.0591,
+          0.0876
+        ],
+        "net_positive_rate": 0.4224,
+        "net_positive_rate_wilson_ci95": [
+          0.3917,
+          0.4537
+        ],
+        "n_remaining": 973,
+        "fraction_kept": 1.0
+      },
+      {
+        "threshold": 0.08,
+        "n_net": 908,
+        "profit_factor": 1.025,
+        "pf_ci95": [
+          0.8788,
+          1.1887
+        ],
+        "avg_net_r": 0.0125,
+        "avg_net_r_ci95": [
+          -0.0601,
+          0.0883
+        ],
+        "net_positive_rate": 0.4251,
+        "net_positive_rate_wilson_ci95": [
+          0.3933,
+          0.4575
+        ],
+        "n_remaining": 908,
+        "fraction_kept": 0.9332
+      },
+      {
+        "threshold": 0.1,
+        "n_net": 853,
+        "profit_factor": 0.9918,
+        "pf_ci95": [
+          0.852,
+          1.151
+        ],
+        "avg_net_r": -0.0041,
+        "avg_net_r_ci95": [
+          -0.0797,
+          0.0725
+        ],
+        "net_positive_rate": 0.4185,
+        "net_positive_rate_wilson_ci95": [
+          0.3859,
+          0.4519
+        ],
+        "n_remaining": 853,
+        "fraction_kept": 0.8767
+      },
+      {
+        "threshold": 0.15,
+        "n_net": 725,
+        "profit_factor": 0.9687,
+        "pf_ci95": [
+          0.8208,
+          1.1448
+        ],
+        "avg_net_r": -0.0162,
+        "avg_net_r_ci95": [
+          -0.1013,
+          0.0724
+        ],
+        "net_positive_rate": 0.411,
+        "net_positive_rate_wilson_ci95": [
+          0.3758,
+          0.4472
+        ],
+        "n_remaining": 725,
+        "fraction_kept": 0.7451
+      },
+      {
+        "threshold": 0.2,
+        "n_net": 577,
+        "profit_factor": 0.876,
+        "pf_ci95": [
+          0.7257,
+          1.056
+        ],
+        "avg_net_r": -0.0664,
+        "avg_net_r_ci95": [
+          -0.1591,
+          0.0287
+        ],
+        "net_positive_rate": 0.3917,
+        "net_positive_rate_wilson_ci95": [
+          0.3527,
+          0.4321
+        ],
+        "n_remaining": 577,
+        "fraction_kept": 0.593
+      }
+    ]
+  },
+  "max_penetration_atr": {
+    "desc": "penetration_atr <= th (cur:0.50)",
+    "baseline": 0.5,
+    "sweep": [
+      {
+        "threshold": 0.2,
+        "n_net": 396,
+        "profit_factor": 1.2885,
+        "pf_ci95": [
+          1.0333,
+          1.6042
+        ],
+        "avg_net_r": 0.1311,
+        "avg_net_r_ci95": [
+          0.0108,
+          0.2434
+        ],
+        "net_positive_rate": 0.4672,
+        "net_positive_rate_wilson_ci95": [
+          0.4186,
+          0.5164
+        ],
+        "n_remaining": 396,
+        "fraction_kept": 0.407
+      },
+      {
+        "threshold": 0.3,
+        "n_net": 636,
+        "profit_factor": 1.0906,
+        "pf_ci95": [
+          0.9062,
+          1.2988
+        ],
+        "avg_net_r": 0.0444,
+        "avg_net_r_ci95": [
+          -0.0459,
+          0.1369
+        ],
+        "net_positive_rate": 0.4324,
+        "net_positive_rate_wilson_ci95": [
+          0.3944,
+          0.4712
+        ],
+        "n_remaining": 636,
+        "fraction_kept": 0.6536
+      },
+      {
+        "threshold": 0.4,
+        "n_net": 813,
+        "profit_factor": 1.0707,
+        "pf_ci95": [
+          0.9106,
+          1.241
+        ],
+        "avg_net_r": 0.0352,
+        "avg_net_r_ci95": [
+          -0.0444,
+          0.1172
+        ],
+        "net_positive_rate": 0.4256,
+        "net_positive_rate_wilson_ci95": [
+          0.392,
+          0.4598
+        ],
+        "n_remaining": 813,
+        "fraction_kept": 0.8356
+      },
+      {
+        "threshold": 0.5,
+        "n_net": 973,
+        "profit_factor": 1.0279,
+        "pf_ci95": [
+          0.8922,
+          1.1853
+        ],
+        "avg_net_r": 0.014,
+        "avg_net_r_ci95": [
+          -0.0591,
+          0.0876
+        ],
+        "net_positive_rate": 0.4224,
+        "net_positive_rate_wilson_ci95": [
+          0.3917,
+          0.4537
+        ],
+        "n_remaining": 973,
+        "fraction_kept": 1.0
+      },
+      {
+        "threshold": 0.75,
+        "n_net": 973,
+        "profit_factor": 1.0279,
+        "pf_ci95": [
+          0.8922,
+          1.1853
+        ],
+        "avg_net_r": 0.014,
+        "avg_net_r_ci95": [
+          -0.0591,
+          0.0876
+        ],
+        "net_positive_rate": 0.4224,
+        "net_positive_rate_wilson_ci95": [
+          0.3917,
+          0.4537
+        ],
+        "n_remaining": 973,
+        "fraction_kept": 1.0
+      },
+      {
+        "threshold": 1.0,
+        "n_net": 973,
+        "profit_factor": 1.0279,
+        "pf_ci95": [
+          0.8922,
+          1.1853
+        ],
+        "avg_net_r": 0.014,
+        "avg_net_r_ci95": [
+          -0.0591,
+          0.0876
+        ],
+        "net_positive_rate": 0.4224,
+        "net_positive_rate_wilson_ci95": [
+          0.3917,
+          0.4537
+        ],
+        "n_remaining": 973,
+        "fraction_kept": 1.0
+      }
+    ]
+  },
+  "min_wick_ratio": {
+    "desc": "wick_ratio >= th (cur:0.35)",
+    "baseline": 0.35,
+    "sweep": [
+      {
+        "threshold": 0.15,
+        "n_net": 973,
+        "profit_factor": 1.0279,
+        "pf_ci95": [
+          0.8922,
+          1.1853
+        ],
+        "avg_net_r": 0.014,
+        "avg_net_r_ci95": [
+          -0.0591,
+          0.0876
+        ],
+        "net_positive_rate": 0.4224,
+        "net_positive_rate_wilson_ci95": [
+          0.3917,
+          0.4537
+        ],
+        "n_remaining": 973,
+        "fraction_kept": 1.0
+      },
+      {
+        "threshold": 0.25,
+        "n_net": 973,
+        "profit_factor": 1.0279,
+        "pf_ci95": [
+          0.8922,
+          1.1853
+        ],
+        "avg_net_r": 0.014,
+        "avg_net_r_ci95": [
+          -0.0591,
+          0.0876
+        ],
+        "net_positive_rate": 0.4224,
+        "net_positive_rate_wilson_ci95": [
+          0.3917,
+          0.4537
+        ],
+        "n_remaining": 973,
+        "fraction_kept": 1.0
+      },
+      {
+        "threshold": 0.35,
+        "n_net": 973,
+        "profit_factor": 1.0279,
+        "pf_ci95": [
+          0.8922,
+          1.1853
+        ],
+        "avg_net_r": 0.014,
+        "avg_net_r_ci95": [
+          -0.0591,
+          0.0876
+        ],
+        "net_positive_rate": 0.4224,
+        "net_positive_rate_wilson_ci95": [
+          0.3917,
+          0.4537
+        ],
+        "n_remaining": 973,
+        "fraction_kept": 1.0
+      },
+      {
+        "threshold": 0.45,
+        "n_net": 700,
+        "profit_factor": 0.9869,
+        "pf_ci95": [
+          0.8271,
+          1.1675
+        ],
+        "avg_net_r": -0.0067,
+        "avg_net_r_ci95": [
+          -0.0919,
+          0.0778
+        ],
+        "net_positive_rate": 0.4114,
+        "net_positive_rate_wilson_ci95": [
+          0.3756,
+          0.4483
+        ],
+        "n_remaining": 700,
+        "fraction_kept": 0.7194
+      },
+      {
+        "threshold": 0.55,
+        "n_net": 437,
+        "profit_factor": 0.9907,
+        "pf_ci95": [
+          0.7987,
+          1.2247
+        ],
+        "avg_net_r": -0.0048,
+        "avg_net_r_ci95": [
+          -0.1131,
+          0.1051
+        ],
+        "net_positive_rate": 0.4211,
+        "net_positive_rate_wilson_ci95": [
+          0.3756,
+          0.4678
+        ],
+        "n_remaining": 437,
+        "fraction_kept": 0.4491
+      },
+      {
+        "threshold": 0.7,
+        "n_net": 161,
+        "profit_factor": 1.0815,
+        "pf_ci95": [
+          0.7498,
+          1.5226
+        ],
+        "avg_net_r": 0.0392,
+        "avg_net_r_ci95": [
+          -0.1356,
+          0.2185
+        ],
+        "net_positive_rate": 0.441,
+        "net_positive_rate_wilson_ci95": [
+          0.3666,
+          0.5182
+        ],
+        "n_remaining": 161,
+        "fraction_kept": 0.1655
+      }
+    ]
+  },
+  "min_reclaim_atr": {
+    "desc": "reclaim_atr >= th (cur:0.00)",
+    "baseline": 0.0,
+    "sweep": [
+      {
+        "threshold": 0.0,
+        "n_net": 973,
+        "profit_factor": 1.0279,
+        "pf_ci95": [
+          0.8922,
+          1.1853
+        ],
+        "avg_net_r": 0.014,
+        "avg_net_r_ci95": [
+          -0.0591,
+          0.0876
+        ],
+        "net_positive_rate": 0.4224,
+        "net_positive_rate_wilson_ci95": [
+          0.3917,
+          0.4537
+        ],
+        "n_remaining": 973,
+        "fraction_kept": 1.0
+      },
+      {
+        "threshold": 0.02,
+        "n_net": 962,
+        "profit_factor": 1.0392,
+        "pf_ci95": [
+          0.8986,
+          1.2115
+        ],
+        "avg_net_r": 0.0196,
+        "avg_net_r_ci95": [
+          -0.0533,
+          0.0931
+        ],
+        "net_positive_rate": 0.4252,
+        "net_positive_rate_wilson_ci95": [
+          0.3943,
+          0.4566
+        ],
+        "n_remaining": 962,
+        "fraction_kept": 0.9887
+      },
+      {
+        "threshold": 0.04,
+        "n_net": 942,
+        "profit_factor": 1.0228,
+        "pf_ci95": [
+          0.8802,
+          1.182
+        ],
+        "avg_net_r": 0.0114,
+        "avg_net_r_ci95": [
+          -0.0592,
+          0.0868
+        ],
+        "net_positive_rate": 0.4225,
+        "net_positive_rate_wilson_ci95": [
+          0.3913,
+          0.4543
+        ],
+        "n_remaining": 942,
+        "fraction_kept": 0.9681
+      },
+      {
+        "threshold": 0.06,
+        "n_net": 921,
+        "profit_factor": 1.027,
+        "pf_ci95": [
+          0.8897,
+          1.1946
+        ],
+        "avg_net_r": 0.0135,
+        "avg_net_r_ci95": [
+          -0.0616,
+          0.0898
+        ],
+        "net_positive_rate": 0.4235,
+        "net_positive_rate_wilson_ci95": [
+          0.3919,
+          0.4556
+        ],
+        "n_remaining": 921,
+        "fraction_kept": 0.9466
+      },
+      {
+        "threshold": 0.1,
+        "n_net": 885,
+        "profit_factor": 1.0266,
+        "pf_ci95": [
+          0.883,
+          1.1917
+        ],
+        "avg_net_r": 0.0132,
+        "avg_net_r_ci95": [
+          -0.0642,
+          0.0881
+        ],
+        "net_positive_rate": 0.4237,
+        "net_positive_rate_wilson_ci95": [
+          0.3916,
+          0.4565
+        ],
+        "n_remaining": 885,
+        "fraction_kept": 0.9096
+      },
+      {
+        "threshold": 0.15,
+        "n_net": 823,
+        "profit_factor": 1.0321,
+        "pf_ci95": [
+          0.8791,
+          1.2028
+        ],
+        "avg_net_r": 0.0159,
+        "avg_net_r_ci95": [
+          -0.0633,
+          0.0989
+        ],
+        "net_positive_rate": 0.4265,
+        "net_positive_rate_wilson_ci95": [
+          0.3931,
+          0.4605
+        ],
+        "n_remaining": 823,
+        "fraction_kept": 0.8458
+      }
+    ]
+  },
+  "time_barrier_result": {
+    "desc": "Time-barrier exit policy (cur:mark_to_market)",
+    "baseline": "mark_to_market",
+    "n_time_exits": 348,
+    "avg_mtm_close_r": 0.3092,
+    "comparison": {
+      "mark_to_market": {
+        "n_net": 973,
+        "profit_factor": 1.0279,
+        "pf_ci95": [
+          0.8883,
+          1.1849
+        ],
+        "avg_net_r": 0.014,
+        "avg_net_r_ci95": [
+          -0.0581,
+          0.0876
+        ],
+        "net_positive_rate": 0.4224,
+        "net_positive_rate_wilson_ci95": [
+          0.3917,
+          0.4537
+        ]
+      },
+      "zero_time_exits": {
+        "n_net": 973,
+        "profit_factor": 0.7902,
+        "pf_ci95": [
+          0.6652,
+          0.9312
+        ],
+        "avg_net_r": -0.0966,
+        "avg_net_r_ci95": [
+          -0.1655,
+          -0.0267
+        ],
+        "net_positive_rate": 0.1819,
+        "net_positive_rate_wilson_ci95": [
+          0.1589,
+          0.2074
+        ]
+      },
+      "time_as_stop_1R": {
+        "n_net": 973,
+        "profit_factor": 0.4447,
+        "pf_ci95": [
+          0.3732,
+          0.524
+        ],
+        "avg_net_r": -0.4543,
+        "avg_net_r_ci95": [
+          -0.5253,
+          -0.3834
+        ],
+        "net_positive_rate": 0.1819,
+        "net_positive_rate_wilson_ci95": [
+          0.1589,
+          0.2074
+        ]
+      },
+      "time_as_0_5R": {
+        "n_net": 973,
+        "profit_factor": 1.1786,
+        "pf_ci95": [
+          1.02,
+          1.3542
+        ],
+        "avg_net_r": 0.0822,
+        "avg_net_r_ci95": [
+          0.0159,
+          0.1547
+        ],
+        "net_positive_rate": 0.5396,
+        "net_positive_rate_wilson_ci95": [
+          0.5082,
+          0.5707
+        ]
+      }
+    },
+    "n_time_of_net_valid": 348,
+    "n_time_exclude_ambiguous": 348,
+    "avg_mtm_close_r_of_time_exits": 0.3092
+  }
+}
