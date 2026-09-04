@@ -1,0 +1,174 @@
+{
+  "model_features": 30,
+  "total_events": 974,
+  "baseline_win_rate": 0.1817,
+  "baseline_net_positive_rate": 0.4224,
+  "net_result_source": "net_result_r (real labeled trade result column)",
+  "excluded_net_nan": 1,
+  "in_sample": {
+    "probability_source": "In-sample (fit on full data, upper bound - NOT live edge)",
+    "oos": false,
+    "subsets": [
+      {
+        "threshold": 0.1,
+        "count": 746,
+        "n_with_net_result": 745,
+        "pct_of_total": 76.6,
+        "win_rate": 0.2172,
+        "net_positive_rate": 0.4309,
+        "avg_net_r": 0.0652,
+        "profit_factor": 1.1271,
+        "expectancy_r": 0.0652
+      },
+      {
+        "threshold": 0.15,
+        "count": 557,
+        "n_with_net_result": 556,
+        "pct_of_total": 57.2,
+        "win_rate": 0.2496,
+        "net_positive_rate": 0.4101,
+        "avg_net_r": 0.0697,
+        "profit_factor": 1.1271,
+        "expectancy_r": 0.0697
+      },
+      {
+        "threshold": 0.2,
+        "count": 372,
+        "n_with_net_result": 371,
+        "pct_of_total": 38.2,
+        "win_rate": 0.2903,
+        "net_positive_rate": 0.442,
+        "avg_net_r": 0.1599,
+        "profit_factor": 1.3025,
+        "expectancy_r": 0.1599
+      },
+      {
+        "threshold": 0.25,
+        "count": 218,
+        "n_with_net_result": 218,
+        "pct_of_total": 22.4,
+        "win_rate": 0.3532,
+        "net_positive_rate": 0.4908,
+        "avg_net_r": 0.3347,
+        "profit_factor": 1.7009,
+        "expectancy_r": 0.3347
+      },
+      {
+        "threshold": 0.3,
+        "count": 127,
+        "n_with_net_result": 127,
+        "pct_of_total": 13.0,
+        "win_rate": 0.4016,
+        "net_positive_rate": 0.5118,
+        "avg_net_r": 0.425,
+        "profit_factor": 1.9322,
+        "expectancy_r": 0.425
+      },
+      {
+        "threshold": 0.35,
+        "count": 60,
+        "n_with_net_result": 60,
+        "pct_of_total": 6.2,
+        "win_rate": 0.45,
+        "net_positive_rate": 0.55,
+        "avg_net_r": 0.5357,
+        "profit_factor": 2.2315,
+        "expectancy_r": 0.5357
+      },
+      {
+        "threshold": 0.4,
+        "count": 26,
+        "n_with_net_result": 26,
+        "pct_of_total": 2.7,
+        "win_rate": 0.5,
+        "net_positive_rate": 0.5385,
+        "avg_net_r": 0.5743,
+        "profit_factor": 2.3455,
+        "expectancy_r": 0.5743
+      }
+    ]
+  },
+  "out_of_sample": {
+    "probability_source": "5-fold cross-validation (OOS, no leakage)",
+    "oos": true,
+    "subsets": [
+      {
+        "threshold": 0.1,
+        "count": 714,
+        "n_with_net_result": 713,
+        "pct_of_total": 73.3,
+        "win_rate": 0.2003,
+        "net_positive_rate": 0.4123,
+        "avg_net_r": 0.009,
+        "profit_factor": 1.0168,
+        "expectancy_r": 0.009
+      },
+      {
+        "threshold": 0.15,
+        "count": 537,
+        "n_with_net_result": 536,
+        "pct_of_total": 55.1,
+        "win_rate": 0.2235,
+        "net_positive_rate": 0.3862,
+        "avg_net_r": -0.0052,
+        "profit_factor": 0.9909,
+        "expectancy_r": -0.0052
+      },
+      {
+        "threshold": 0.2,
+        "count": 361,
+        "n_with_net_result": 360,
+        "pct_of_total": 37.1,
+        "win_rate": 0.2576,
+        "net_positive_rate": 0.4222,
+        "avg_net_r": 0.0897,
+        "profit_factor": 1.1653,
+        "expectancy_r": 0.0897
+      },
+      {
+        "threshold": 0.25,
+        "count": 223,
+        "n_with_net_result": 223,
+        "pct_of_total": 22.9,
+        "win_rate": 0.2915,
+        "net_positive_rate": 0.4395,
+        "avg_net_r": 0.1619,
+        "profit_factor": 1.3045,
+        "expectancy_r": 0.1619
+      },
+      {
+        "threshold": 0.3,
+        "count": 125,
+        "n_with_net_result": 125,
+        "pct_of_total": 12.8,
+        "win_rate": 0.28,
+        "net_positive_rate": 0.448,
+        "avg_net_r": 0.1665,
+        "profit_factor": 1.3182,
+        "expectancy_r": 0.1665
+      },
+      {
+        "threshold": 0.35,
+        "count": 69,
+        "n_with_net_result": 69,
+        "pct_of_total": 7.1,
+        "win_rate": 0.3043,
+        "net_positive_rate": 0.4203,
+        "avg_net_r": 0.13,
+        "profit_factor": 1.231,
+        "expectancy_r": 0.13
+      },
+      {
+        "threshold": 0.4,
+        "count": 32,
+        "n_with_net_result": 32,
+        "pct_of_total": 3.3,
+        "win_rate": 0.3125,
+        "net_positive_rate": 0.4375,
+        "avg_net_r": 0.1487,
+        "profit_factor": 1.2784,
+        "expectancy_r": 0.1487
+      }
+    ]
+  }
+}

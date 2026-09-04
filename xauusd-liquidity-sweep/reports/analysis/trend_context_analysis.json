@@ -1,0 +1,349 @@
+{
+  "cells_direction_x_h1trend": [
+    {
+      "direction": "long",
+      "h1_trend": -1,
+      "n": 342,
+      "n_ambiguous": 1,
+      "n_long": 342,
+      "n_resolved": 341,
+      "n_short": 0,
+      "n_sl": 159,
+      "n_time": 129,
+      "n_tp": 53,
+      "net": {
+        "avg_net_r": -0.015742,
+        "n_net_valid": 341,
+        "net_positive_rate": 0.419355,
+        "profit_factor": 0.96907
+      },
+      "win_rate": {
+        "ci95_high": 0.197696,
+        "ci95_low": 0.120832,
+        "k": 53,
+        "n": 341,
+        "point": 0.155425
+      }
+    },
+    {
+      "direction": "long",
+      "h1_trend": 1,
+      "n": 148,
+      "n_ambiguous": 0,
+      "n_long": 148,
+      "n_resolved": 148,
+      "n_short": 0,
+      "n_sl": 63,
+      "n_time": 53,
+      "n_tp": 32,
+      "net": {
+        "avg_net_r": 0.094009,
+        "n_net_valid": 148,
+        "net_positive_rate": 0.425676,
+        "profit_factor": 1.19717
+      },
+      "win_rate": {
+        "ci95_high": 0.289266,
+        "ci95_low": 0.157525,
+        "k": 32,
+        "n": 148,
+        "point": 0.216216
+      }
+    },
+    {
+      "direction": "short",
+      "h1_trend": -1,
+      "n": 127,
+      "n_ambiguous": 0,
+      "n_long": 0,
+      "n_resolved": 127,
+      "n_short": 127,
+      "n_sl": 64,
+      "n_time": 33,
+      "n_tp": 30,
+      "net": {
+        "avg_net_r": 0.051772,
+        "n_net_valid": 127,
+        "net_positive_rate": 0.425197,
+        "profit_factor": 1.097983
+      },
+      "win_rate": {
+        "ci95_high": 0.317157,
+        "ci95_low": 0.170773,
+        "k": 30,
+        "n": 127,
+        "point": 0.23622
+      }
+    },
+    {
+      "direction": "short",
+      "h1_trend": 1,
+      "n": 357,
+      "n_ambiguous": 0,
+      "n_long": 0,
+      "n_resolved": 357,
+      "n_short": 357,
+      "n_sl": 162,
+      "n_time": 133,
+      "n_tp": 62,
+      "net": {
+        "avg_net_r": -0.004214,
+        "n_net_valid": 357,
+        "net_positive_rate": 0.422969,
+        "profit_factor": 0.99152
+      },
+      "win_rate": {
+        "ci95_high": 0.216384,
+        "ci95_low": 0.137903,
+        "k": 62,
+        "n": 357,
+        "point": 0.173669
+      }
+    }
+  ],
+  "dataset": "data/processed/labeled_events.parquet (frozen, 974)",
+  "definitions": {
+    "direction": "trade direction: long = bullish sweep of a low; short = bearish sweep of a high (schema.F2 reconciliation)",
+    "h1_trend": "sign of H1 EMA(50) slope at the event bar (causal, feature_pipeline/htf.py) : +1 up / -1 down",
+    "h1_trend_is_binary_sign": true,
+    "h1_trend_magnitude_feature": "frozen dataset has no trend-strength magnitude column; groups split on the sign only",
+    "sweep_cung_chieu_trend_h1": "catch-the-knife cluster (task group 'sweep c\u00f9ng chi\u1ec1u trend H1'): SHORT while H1 uptrend (bearish sweep = up-thrust through a high during an H1 up move) OR LONG while H1 downtrend (bullish sweep = down-thrust through a low during an H1 down move). The trade fades the H1-trend thrust at the swept extreme => knife. Chart loss cases LVL-000561 (short @ prev_day_high in strong rally) and LVL-002241 (long @ equal_low in downtrend) fall in this group.",
+    "sweep_nguoc_trend": "sweep ng\u01b0\u1ee3c trend / trend y\u1ebfu: LONG while H1 uptrend (buying a down-thrust dip in an up trend) OR SHORT while H1 downtrend (selling an up-thrust pop in a down trend) \u2014 the sweep thrust counters the H1 trend; trade follows the H1 trend."
+  },
+  "groups": [
+    {
+      "cross_level_type": [
+        {
+          "level_type": "rolling",
+          "n": 0,
+          "n_ambiguous": 0,
+          "n_long": 0,
+          "n_resolved": 0,
+          "n_short": 0,
+          "n_sl": 0,
+          "n_time": 0,
+          "n_tp": 0,
+          "net": {
+            "avg_net_r": null,
+            "n_net_valid": 0,
+            "net_positive_rate": null,
+            "profit_factor": null
+          },
+          "win_rate": null
+        },
+        {
+          "level_type": "swing",
+          "n": 329,
+          "n_ambiguous": 0,
+          "n_long": 163,
+          "n_resolved": 329,
+          "n_short": 166,
+          "n_sl": 145,
+          "n_time": 132,
+          "n_tp": 52,
+          "net": {
+            "avg_net_r": 0.01374,
+            "n_net_valid": 329,
+            "net_positive_rate": 0.431611,
+            "profit_factor": 1.028375
+          },
+          "win_rate": {
+            "ci95_high": 0.201389,
+            "ci95_low": 0.122613,
+            "k": 52,
+            "n": 329,
+            "point": 0.158055
+          }
+        },
+        {
+          "level_type": "equal",
+          "n": 358,
+          "n_ambiguous": 1,
+          "n_long": 177,
+          "n_resolved": 357,
+          "n_short": 181,
+          "n_sl": 168,
+          "n_time": 126,
+          "n_tp": 63,
+          "net": {
+            "avg_net_r": -0.008682,
+            "n_net_valid": 357,
+            "net_positive_rate": 0.420168,
+            "profit_factor": 0.983033
+          },
+          "win_rate": {
+            "ci95_high": 0.219399,
+            "ci95_low": 0.140431,
+            "k": 63,
+            "n": 357,
+            "point": 0.176471
+          }
+        },
+        {
+          "level_type": "prev_day",
+          "n": 12,
+          "n_ambiguous": 0,
+          "n_long": 2,
+          "n_resolved": 12,
+          "n_short": 10,
+          "n_sl": 8,
+          "n_time": 4,
+          "n_tp": 0,
+          "net": {
+            "avg_net_r": -0.691129,
+            "n_net_valid": 12,
+            "net_positive_rate": 0.166667,
+            "profit_factor": 0.076389
+          },
+          "win_rate": {
+            "ci95_high": 0.242494,
+            "ci95_low": 0.0,
+            "k": 0,
+            "n": 12,
+            "point": 0.0
+          }
+        }
+      ],
+      "n": 699,
+      "n_ambiguous": 1,
+      "n_long": 342,
+      "n_resolved": 698,
+      "n_short": 357,
+      "n_sl": 321,
+      "n_time": 262,
+      "n_tp": 115,
+      "net": {
+        "avg_net_r": -0.009846,
+        "n_net_valid": 698,
+        "net_positive_rate": 0.421203,
+        "profit_factor": 0.980419
+      },
+      "trend_group": "sweep_cung_chieu_trend_h1",
+      "win_rate": {
+        "ci95_high": 0.194097,
+        "ci95_low": 0.139086,
+        "k": 115,
+        "n": 698,
+        "point": 0.164756
+      }
+    },
+    {
+      "cross_level_type": [
+        {
+          "level_type": "rolling",
+          "n": 0,
+          "n_ambiguous": 0,
+          "n_long": 0,
+          "n_resolved": 0,
+          "n_short": 0,
+          "n_sl": 0,
+          "n_time": 0,
+          "n_tp": 0,
+          "net": {
+            "avg_net_r": null,
+            "n_net_valid": 0,
+            "net_positive_rate": null,
+            "profit_factor": null
+          },
+          "win_rate": null
+        },
+        {
+          "level_type": "swing",
+          "n": 144,
+          "n_ambiguous": 0,
+          "n_long": 76,
+          "n_resolved": 144,
+          "n_short": 68,
+          "n_sl": 65,
+          "n_time": 45,
+          "n_tp": 34,
+          "net": {
+            "avg_net_r": 0.094213,
+            "n_net_valid": 144,
+            "net_positive_rate": 0.4375,
+            "profit_factor": 1.192882
+          },
+          "win_rate": {
+            "ci95_high": 0.311768,
+            "ci95_low": 0.174168,
+            "k": 34,
+            "n": 144,
+            "point": 0.236111
+          }
+        },
+        {
+          "level_type": "equal",
+          "n": 129,
+          "n_ambiguous": 0,
+          "n_long": 71,
+          "n_resolved": 129,
+          "n_short": 58,
+          "n_sl": 62,
+          "n_time": 40,
+          "n_tp": 27,
+          "net": {
+            "avg_net_r": 0.043358,
+            "n_net_valid": 129,
+            "net_positive_rate": 0.410853,
+            "profit_factor": 1.083904
+          },
+          "win_rate": {
+            "ci95_high": 0.287396,
+            "ci95_low": 0.148021,
+            "k": 27,
+            "n": 129,
+            "point": 0.209302
+          }
+        },
+        {
+          "level_type": "prev_day",
+          "n": 2,
+          "n_ambiguous": 0,
+          "n_long": 1,
+          "n_resolved": 2,
+          "n_short": 1,
+          "n_sl": 0,
+          "n_time": 1,
+          "n_tp": 1,
+          "net": {
+            "avg_net_r": 0.664319,
+            "n_net_valid": 2,
+            "net_positive_rate": 0.5,
+            "profit_factor": 2.979016
+          },
+          "win_rate": {
+            "ci95_high": 0.905469,
+            "ci95_low": 0.094531,
+            "k": 1,
+            "n": 2,
+            "point": 0.5
+          }
+        }
+      ],
+      "n": 275,
+      "n_ambiguous": 0,
+      "n_long": 148,
+      "n_resolved": 275,
+      "n_short": 127,
+      "n_sl": 127,
+      "n_time": 86,
+      "n_tp": 62,
+      "net": {
+        "avg_net_r": 0.074503,
+        "n_net_valid": 275,
+        "net_positive_rate": 0.425455,
+        "profit_factor": 1.148824
+      },
+      "trend_group": "sweep_nguoc_trend",
+      "win_rate": {
+        "ci95_high": 0.278431,
+        "ci95_low": 0.180043,
+        "k": 62,
+        "n": 275,
+        "point": 0.225455
+      }
+    }
+  ],
+  "n_net_valid": 973,
+  "n_total": 974
+}

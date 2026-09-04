@@ -1,0 +1,238 @@
+{
+  "chart_cases": [
+    {
+      "chart_group": "losers",
+      "event_id": "LVL-000561",
+      "expected": "loss",
+      "found_in_review_pool": true,
+      "level_id": "prev_day_high_894",
+      "level_type": "prev_day",
+      "match": true,
+      "net_result_r": -1.0,
+      "primary_outcome": "sl",
+      "source": "level_sweep"
+    },
+    {
+      "chart_group": "losers",
+      "event_id": "LVL-002241",
+      "expected": "loss",
+      "found_in_review_pool": true,
+      "level_id": "equal_low_3741",
+      "level_type": "equal",
+      "match": true,
+      "net_result_r": -1.0,
+      "primary_outcome": "sl",
+      "source": "level_sweep"
+    },
+    {
+      "chart_group": "losers",
+      "event_id": "LVL-003144",
+      "expected": "loss",
+      "found_in_review_pool": true,
+      "level_id": "swing_low_5559",
+      "level_type": "swing",
+      "match": true,
+      "net_result_r": -1.0,
+      "primary_outcome": "sl",
+      "source": "level_sweep"
+    },
+    {
+      "chart_group": "winners",
+      "event_id": "LVL-020791",
+      "expected": "win",
+      "found_in_review_pool": true,
+      "level_id": "equal_high_34622",
+      "level_type": "equal",
+      "match": true,
+      "net_result_r": 2.0,
+      "primary_outcome": "tp",
+      "source": "level_sweep"
+    },
+    {
+      "chart_group": "winners",
+      "event_id": "LVL-023344",
+      "expected": "win",
+      "found_in_review_pool": true,
+      "level_id": "equal_high_39163",
+      "level_type": "equal",
+      "match": true,
+      "net_result_r": 2.0,
+      "primary_outcome": "tp",
+      "source": "level_sweep"
+    },
+    {
+      "chart_group": "winners",
+      "event_id": "LVL-025112",
+      "expected": "win",
+      "found_in_review_pool": true,
+      "level_id": "swing_high_42181",
+      "level_type": "swing",
+      "match": true,
+      "net_result_r": 2.0,
+      "primary_outcome": "tp",
+      "source": "level_sweep"
+    }
+  ],
+  "dataset": "data/processed/labeled_events.parquet (frozen, 974 confirmed events)",
+  "n_net_valid": 973,
+  "n_total": 974,
+  "note": "level_type column carries the registry structural level matched to each confirmed event (baseline sweeps a rolling level_id but the feature pipeline attributes every confirmed event to a structural registry level). 'rolling' therefore has n=0 in the frozen 974; the rolling-vs-structural comparison is evaluated on the review-round-2 pool (manual_review_v2.csv) where confirmed rows are labelled 'rolling'.",
+  "review_pool": {
+    "note": "win_rate here = P(net_result_r>0) on review-pool rows (chart ground truth from event_charts_v2 folder membership); costs already included in net_result_r.",
+    "rows": [
+      {
+        "avg_net_r": 0.191826,
+        "level_type": "equal",
+        "n": 27,
+        "n_ambiguous_net_nan": 10,
+        "profit_factor": 1.323707,
+        "source_pool": "level_sweep",
+        "win_rate_net": {
+          "ci95_high": 0.592733,
+          "ci95_low": 0.245148,
+          "k": 11,
+          "n": 27,
+          "point": 0.407407
+        }
+      },
+      {
+        "avg_net_r": -0.5,
+        "level_type": "prev_day",
+        "n": 24,
+        "n_ambiguous_net_nan": 10,
+        "profit_factor": 0.4,
+        "source_pool": "level_sweep",
+        "win_rate_net": {
+          "ci95_high": 0.358531,
+          "ci95_low": 0.066787,
+          "k": 4,
+          "n": 24,
+          "point": 0.166667
+        }
+      },
+      {
+        "avg_net_r": 0.332158,
+        "level_type": "rolling",
+        "n": 71,
+        "n_ambiguous_net_nan": 10,
+        "profit_factor": 1.788114,
+        "source_pool": "confirmed",
+        "win_rate_net": {
+          "ci95_high": 0.619948,
+          "ci95_low": 0.393413,
+          "k": 36,
+          "n": 71,
+          "point": 0.507042
+        }
+      },
+      {
+        "avg_net_r": -0.308788,
+        "level_type": "swing",
+        "n": 28,
+        "n_ambiguous_net_nan": 10,
+        "profit_factor": 0.588283,
+        "source_pool": "level_sweep",
+        "win_rate_net": {
+          "ci95_high": 0.433557,
+          "ci95_low": 0.126765,
+          "k": 7,
+          "n": 28,
+          "point": 0.25
+        }
+      }
+    ],
+    "source": "reports/manual_review_v2.csv (160 reviewed, net parseable 150)"
+  },
+  "rows": [
+    {
+      "level_type": "rolling",
+      "n": 0,
+      "n_ambiguous": 0,
+      "n_long": 0,
+      "n_resolved": 0,
+      "n_short": 0,
+      "n_sl": 0,
+      "n_time": 0,
+      "n_tp": 0,
+      "net": {
+        "avg_net_r": null,
+        "n_net_valid": 0,
+        "net_positive_rate": null,
+        "profit_factor": null
+      },
+      "win_rate": null
+    },
+    {
+      "level_type": "swing",
+      "n": 473,
+      "n_ambiguous": 0,
+      "n_long": 239,
+      "n_resolved": 473,
+      "n_short": 234,
+      "n_sl": 210,
+      "n_time": 177,
+      "n_tp": 86,
+      "net": {
+        "avg_net_r": 0.038239,
+        "n_net_valid": 473,
+        "net_positive_rate": 0.433404,
+        "profit_factor": 1.07876
+      },
+      "win_rate": {
+        "ci95_high": 0.219094,
+        "ci95_low": 0.149668,
+        "k": 86,
+        "n": 473,
+        "point": 0.181818
+      }
+    },
+    {
+      "level_type": "equal",
+      "n": 487,
+      "n_ambiguous": 1,
+      "n_long": 248,
+      "n_resolved": 486,
+      "n_short": 239,
+      "n_sl": 230,
+      "n_time": 166,
+      "n_tp": 90,
+      "net": {
+        "avg_net_r": 0.005131,
+        "n_net_valid": 486,
+        "net_positive_rate": 0.417695,
+        "profit_factor": 1.010002
+      },
+      "win_rate": {
+        "ci95_high": 0.222142,
+        "ci95_low": 0.153166,
+        "k": 90,
+        "n": 486,
+        "point": 0.185185
+      }
+    },
+    {
+      "level_type": "prev_day",
+      "n": 14,
+      "n_ambiguous": 0,
+      "n_long": 3,
+      "n_resolved": 14,
+      "n_short": 11,
+      "n_sl": 8,
+      "n_time": 5,
+      "n_tp": 1,
+      "net": {
+        "avg_net_r": -0.497494,
+        "n_net_valid": 14,
+        "net_positive_rate": 0.214286,
+        "profit_factor": 0.278311
+      },
+      "win_rate": {
+        "ci95_high": 0.314687,
+        "ci95_low": 0.012722,
+        "k": 1,
+        "n": 14,
+        "point": 0.071429
+      }
+    }
+  ]
+}

@@ -1,0 +1,811 @@
+{
+  "name": "xauusd-liquidity-sweep-v2",
+  "id": "xauusd-liquidity-sweep-v2",
+  "description": "Hoàn tất chuỗi còn lại cho XAUUSD M15 Liquidity Sweep từ hiện trạng workspace: (1) verify 2 fix đã sửa sẵn (F3-WF wire impute_medians trong walk_forward_validation; F1-PAYOFF/RACE generator dùng net_result_r thật + guard --force), (2) chạy lại pipeline CLI rc=0 + tái sinh walk_forward_report/top-prob từ train-only imputation, (3) QA audit độc lập, (4) re-freeze baseline v1.2.0 với metrics trung thực. Team cũ (34 tasks) đã xóa; code/artifacts/báo cáo là file trong workspace xauusd-liquidity-sweep/. User sẽ chọn model cho từng member trong Web plan trước khi Approve.",
+  "captainSessionId": "session-f9e73dbd-7459-4fe6-859f-420afe593c6b",
+  "createdAt": 1788505175417,
+  "members": [
+    {
+      "id": "f0bc2a5f-4aab-4c73-900d-4beb011346ac",
+      "name": "Lead_Integrator",
+      "role": "Project Lead / Integrator",
+      "provider": "shopaikey",
+      "model": "deepseek-v4-flash",
+      "executionPrompt": "Bạn là Project Lead / Integrator cho giai đoạn hoàn tất XAUUSD Liquidity Sweep (team v2). Bối cảnh: toàn bộ hệ thống đã được xây xong bởi team cũ (34 tasks, đã xóa) — code/artifacts nằm trong workspace xauusd-liquidity-sweep/. Công việc còn lại: re-freeze baseline v1.2.0 với metrics trung thực sau khi ML_Engineer chạy lại pipeline và QA_Auditor verify. Không dùng dữ liệu tương lai (no look-ahead). Báo cáo bằng tiếng Việt. Model của bạn có thể được user chọn lại trong Web plan.",
+      "joinedAt": 1788505201334,
+      "status": "removed"
+    },
+    {
+      "id": "e41b0449-f47e-4c58-88c3-36590ef7a783",
+      "name": "ML_Engineer",
+      "role": "Modeling & Scoring Engineer",
+      "provider": "shopaikey",
+      "model": "deepseek-v4-flash",
+      "executionPrompt": "Bạn là Modeling/Scoring Engineer (team v2) chuyên chạy lại pipeline ML cho XAUUSD Liquidity Sweep. Bối cảnh: workspace xauusd-liquidity-sweep/, interpreter .venv/bin/python (KHÔNG dùng bare python). Hai fix đã được captain sửa SẴN trong code: (1) src/modeling/train.py walk_forward_validation đã wire impute_medians (train-only) vào calibrate_model/evaluate_on_test (F3-WF); (2) scripts/generate_top_prob_analysis.py đã viết lại dùng cột net_result_r THẬT (loại 1 event ambiguous NaN) + guard chống ghi đè yêu cầu --force (F1-PAYOFF/F1-RACE). src/pipelines/train_model.py L105-110 đã wire impute_medians (F3-CLI). Nhiệm vụ của bạn: XÁC NHẬN các fix này chạy thật (rc=0), tái sinh toàn bộ artifacts từ MỘT prepare version, chạy pytest 41/41, đóng băng md5. Model có thể được user chọn lại.",
+      "joinedAt": 1788505201355,
+      "status": "removed"
+    },
+    {
+      "id": "62bb3595-8f06-4d0b-bc55-6fefab1e8280",
+      "name": "QA_Auditor",
+      "role": "QA / Bias Auditor",
+      "provider": "shopaikey",
+      "model": "deepseek-v4-flash",
+      "executionPrompt": "Bạn là QA / Bias Auditor (team v2) — vai trò verify ĐỘC LẬP, không tin lời báo cáo mà phải tự chạy lệnh thật (rc, md5, diff 2 lần, đọc file JSON). Dự án: XAUUSD Liquidity Sweep, workspace xauusd-liquidity-sweep/, interpreter .venv/bin/python. Bối cảnh: chuỗi repair leakage đã trải qua nhiều vòng QA (45→32 features, Option B 30 numeric, impute train-only). Model sạch phân biệt YẾU (test PR-AUC ~0.228/ROC ~0.605) — đừng kỳ vọng metrics cao; metrics cao + PF~1 là dấu hiệu leak. Model có thể được user chọn lại.",
+      "joinedAt": 1788505201372,
+      "status": "removed"
+    }
+  ],
+  "tasks": [
+    {
+      "id": "t1",
+      "subject": "Chạy pipeline xác nhận 2 fix (F3-WF/F1-PAYOFF) + tái sinh artifact + md5 freeze",
+      "description": "Chạy lại pipeline từ hiện trạng code (2 fix đã nằm sẵn trong workspace từ captain): (1) xác nhận src/modeling/train.py walk_forward_validation đã wire impute_medians train-only vào calibrate_model/evaluate_on_test (F3-WF); (2) xác nhận src/pipelines/train_model.py L105-110 wire impute_medians (F3-CLI); (3) chạy .venv/bin/xauusd-train → phải rc=0; (4) chạy scripts/generate_reports.py để tái sinh walk_forward_report.json/.md từ imputation train-only; (5) chạy .venv/bin/python scripts/generate_top_prob_analysis.py --force để tái sinh top_prob_subset_analysis dùng net_result_r thật (loại 1 event ambiguous NaN, n=973 net-valid); (6) .venv/bin/python -m pytest tests/ -q → 41/41; (7) ghi md5 snapshot + mtime các artifact, đảm bảo model.pkl/test_metrics/walk_forward/top-prob cùng một prepare version; (8) KHÔNG tái sinh/ghi đè artifact sau khi đã đóng băng md5 (F1-RACE). Interpreter: .venv/bin/python. Workdir: xauusd-liquidity-sweep/. KHÔNG dùng bare python.",
+      "status": "completed",
+      "assignee": "ML_Engineer",
+      "dependencies": [],
+      "attempt": 1,
+      "createdAt": 1788505216339,
+      "updatedAt": 1788505907866,
+      "kind": "implementation",
+      "objective": "Chạy lại toàn bộ chuỗi train + tái sinh báo cáo từ hiện trạng code đã fix, xác nhận CLI rc=0 và artifact đồng bộ một prepare version, đóng băng md5.",
+      "inScope": [
+        "xauusd-liquidity-sweep/src/modeling/train.py",
+        "xauusd-liquidity-sweep/src/pipelines/train_model.py",
+        "xauusd-liquidity-sweep/scripts/generate_top_prob_analysis.py",
+        "xauusd-liquidity-sweep/reports/",
+        "xauusd-liquidity-sweep/artifacts/models/"
+      ],
+      "acceptance": [
+        "xauusd-train CLI chạy rc=0, không crash 'Input X contains NaN' (F3-CLI)",
+        "walk_forward_validation trong src/modeling/train.py truyền impute_medians (train-only) vào calibrate_model/evaluate_on_test — verified bằng đọc code + chạy thật",
+        "reports/walk_forward_report.json/.md được tái sinh từ imputation train-only (mtime mới, không còn là bản stale 18:55:42)",
+        "scripts/generate_top_prob_analysis.py dùng cột net_result_r THẬT (không còn synthetic tp=2/sl=-1/time=0) và có guard --force; reports/top_prob_subset_analysis.json chứa key net_result_source + P(net>0)",
+        "pytest toàn bộ 41/41 pass",
+        "md5 snapshot của model.pkl/test_metrics.json/walk_forward_report/top_prob được ghi lại và các artifact đồng bộ cùng prepare version"
+      ],
+      "verify": [
+        ".venv/bin/xauusd-train (rc=0, không NaN crash)",
+        ".venv/bin/python -m pytest tests/ -q (41/41 pass)",
+        ".venv/bin/python scripts/generate_top_prob_analysis.py --force (chạy được, dùng net_result_r)",
+        "md5sum các artifact ghi lại"
+      ],
+      "deliverables": [
+        "reports/walk_forward_report.json",
+        "reports/walk_forward_report.md",
+        "reports/top_prob_subset_analysis.json",
+        "reports/top_prob_subset_analysis.md",
+        "reports/metrics/test_metrics.json",
+        "artifacts/models/model.pkl",
+        "md5 snapshot file"
+      ],
+      "attemptId": "ea36d629-d1ea-45fa-8c2e-b764d569228c",
+      "reassigning": false,
+      "output": "T1 hoàn tất — 2 fix xác nhận chạy thật rc=0, artifact tái sinh đồng bộ 1 prepare version, md5 đã đóng băng.\\n\\n(1) F3-WF: walk_forward_validation (train.py L655-668) truyền impute_medians train-only vào calibrate_model/evaluate_on_test — code + chạy thật (5 folds sạch, PR-AUC OOS 0.3552).\\n(2) F3-CLI: train_model.py L105-110 wire impute_medians; xauusd-train rc=0 không NaN crash; test PR-AUC 0.2275/ROC 0.6041 (model yếu trung thực).\\n(3) F1-PAYOFF: generator dùng net_result_r thật, loại đúng 1 ambiguous (n=973 net-valid); JSON có net_result_source + P(net>0); OOS PF th>=0.2=1.1653, th>=0.25=1.3045, th>=0.4=1.2784.\\n(4) F1-RACE: probe không --force → [skip], md5 không đổi.\\n(5) pytest: 376 passed rc=0.\\n(6) Freeze: xauusd-liquidity-sweep/reports/integration/t1_rerun_md5_snapshot.json (13 artifacts md5+mtime); dataset md5 fac22cea… (1 prepare version); re-capture diff rỗng.\\n\\nBàn giao cho QA (t2): dùng snapshot trên để chụp md5 lần 2 đối chiếu (kỳ vọng diff rỗng).",
+      "changedPaths": [
+        "xauusd-liquidity-sweep/reports/integration/t1_rerun_md5_snapshot.json",
+        "xauusd-liquidity-sweep/reports/walk_forward_report.json",
+        "xauusd-liquidity-sweep/reports/walk_forward_report.md",
+        "xauusd-liquidity-sweep/reports/top_prob_subset_analysis.json",
+        "xauusd-liquidity-sweep/reports/top_prob_subset_analysis.md",
+        "xauusd-liquidity-sweep/reports/metrics/test_metrics.json",
+        "xauusd-liquidity-sweep/reports/score_bucket_report.json",
+        "xauusd-liquidity-sweep/reports/score_bucket_report.md",
+        "xauusd-liquidity-sweep/artifacts/models/model.pkl",
+        "xauusd-liquidity-sweep/artifacts/models/calibrator.pkl",
+        "xauusd-liquidity-sweep/reports/figures/walk_forward_folds.png",
+        "xauusd-liquidity-sweep/reports/figures/score_bucket_performance.png"
+      ],
+      "acceptanceResults": [
+        {
+          "criterion": "xauusd-train CLI chạy rc=0, không crash 'Input X contains NaN' (F3-CLI)",
+          "status": "passed",
+          "evidence": "xauusd-train rc=0 (artifacts mtime 16:04:13); không NaN crash; test PR-AUC 0.2275 / ROC 0.6041 (model yếu trung thực); model.pkl chứa impute_medians (2 cột) + feature_names (30)."
+        },
+        {
+          "criterion": "walk_forward_validation trong src/modeling/train.py truyền impute_medians (train-only) vào calibrate_model/evaluate_on_test — verified bằng đọc code + chạy thật",
+          "status": "passed",
+          "evidence": "train.py L655-668: impute_medians_fold truyền vào calibrate_model + evaluate_on_test; train_models L267-273 median chỉ trên X_train. Chạy thật qua generate_reports: 5 folds sạch, PR-AUC OOS mean 0.3552 ± 0.0291, không fold lỗi."
+        },
+        {
+          "criterion": "reports/walk_forward_report.json/.md được tái sinh từ imputation train-only (mtime mới, không còn là bản stale 18:55:42)",
+          "status": "passed",
+          "evidence": "walk_forward_report.json/.md mtime 2026-09-04 16:04:45 (mới, thay bản stale 2026-09-03 18:55/19:26); n_folds=5; không NaN/inf."
+        },
+        {
+          "criterion": "scripts/generate_top_prob_analysis.py dùng cột net_result_r THẬT (không còn synthetic tp=2/sl=-1/time=0) và có guard --force; reports/top_prob_subset_analysis.json chứa key net_result_source + P(net>0)",
+          "status": "passed",
+          "evidence": "Generator code đọc df['net_result_r'] (L94-100) loại NaN; guard L75-79 yêu cầu --force; probe không --force → [skip] rc=0, md5 không đổi. JSON mới: net_result_source='net_result_r (real labeled trade result column)', baseline_net_positive_rate=0.4224, excluded_net_nan=1, net_positive_rate per subset — không synthetic tp/sl/time."
+        },
+        {
+          "criterion": "pytest toàn bộ 41/41 pass",
+          "status": "passed",
+          "evidence": "Full suite: 376 passed, 1 warning, rc=0 trong 208.65s — green superset bao phủ bộ test được tham chiếu."
+        },
+        {
+          "criterion": "md5 snapshot của model.pkl/test_metrics.json/walk_forward_report/top_prob được ghi lại và các artifact đồng bộ cùng prepare version",
+          "status": "passed",
+          "evidence": "reports/integration/t1_rerun_md5_snapshot.json: md5+mtime+size của 13 artifact (model.pkl 69d65883…, test_metrics 3087b9e3…, walk_forward_report.json 59e67682…, top_prob d360daa4…); 2 dataset copies md5 fac22cea… (một prepare version); re-capture diff rỗng."
+        }
+      ],
+      "commandsRun": [
+        {
+          "command": ".venv/bin/xauusd-train (rc=0, không NaN crash)",
+          "status": "passed",
+          "exitCode": 0,
+          "evidence": "rc=0; best=logistic_regression; test PR-AUC 0.2275/ROC 0.6041; không 'Input X contains NaN'; artifacts mtime 16:04:13."
+        },
+        {
+          "command": ".venv/bin/python -m pytest tests/ -q (41/41 pass)",
+          "status": "passed",
+          "exitCode": 0,
+          "evidence": "376 passed, 1 warning, 208.65s, rc=0 — full suite green."
+        },
+        {
+          "command": ".venv/bin/python scripts/generate_top_prob_analysis.py --force (chạy được, dùng net_result_r)",
+          "status": "passed",
+          "exitCode": 0,
+          "evidence": "rc=0; '[info] excluding 1 event(s) with net_result_r=NaN (ambiguous outcome)'; JSON có net_result_source + net_positive_rate + baseline_net_positive_rate 0.4224; OOS PF 1.1653/1.3045/1.2784 tại th 0.2/0.25/0.4."
+        },
+        {
+          "command": "md5sum các artifact ghi lại",
+          "status": "passed",
+          "exitCode": 0,
+          "evidence": "reports/integration/t1_rerun_md5_snapshot.json: md5+mtime 13 artifacts; re-capture diff rỗng (không ghi đè sau freeze); dataset md5 fac22cea… đồng nhất 2 bản."
+        }
+      ]
+    },
+    {
+      "id": "t2",
+      "subject": "QA độc lập: verify fix F3-CLI/WF + F1-PAYOFF/RACE (tái lập, md5 ổn định)",
+      "description": "QA độc lập verify kết quả t1 (repair t32 cũ đã được captain sửa trong code). Tự chạy lại các lệnh thật, KHÔNG tin lời báo cáo: (1) .venv/bin/xauusd-train → rc=0; (2) đọc src/modeling/train.py walk_forward_validation + src/pipelines/train_model.py xác nhận impute_medians được truyền vào calibrate_model/evaluate_on_test; (3) kiểm tra reports/walk_forward_report.json mtime mới + nội dung hợp lệ (không NaN, không phải bản stale); (4) kiểm tra reports/top_prob_subset_analysis.json: có key net_result_source='net_result_r...', baseline_net_positive_rate, subset PF dùng net thật — kỳ vọng th>=0.2 PF~1.165, th>=0.25 PF~1.305, th>=0.4 PF~1.278 (n nhỏ, sai số cho phép); KHÔNG còn synthetic tp=2/sl=-1/time=0; (5) md5 stability: chụp md5 2 lần cách nhau, diff rỗng — chứng minh không ghi đè sau freeze; (6) .venv/bin/python -m pytest tests/ -q → 41/41; (7) inference smoke: dùng predict_with_model từ artifacts/models/model.pkl trên 1 row mới (NaN + string) → không crash; (8) kiểm tra model.pkl chứa key impute_medians + feature_names 30. Verdict PASS chỉ khi có bằng chứng thật; nếu có finding → needs_revision kèm findings chi tiết. Workdir: xauusd-liquidity-sweep/. Interpreter: .venv/bin/python.",
+      "status": "completed",
+      "assignee": "QA_Auditor",
+      "dependencies": [
+        "t1"
+      ],
+      "attempt": 1,
+      "createdAt": 1788505230738,
+      "updatedAt": 1788506672488,
+      "kind": "review",
+      "round": 1,
+      "objective": "Verify độc lập rằng t1 đã sửa đúng 4 findings t30 (F3-CLI/F3-WF/F1-PAYOFF/F1-RACE) bằng chạy lệnh thật + bằng chứng md5/JSON, không dựa trên lời báo cáo.",
+      "acceptance": [
+        "xauusd-train CLI chạy thật rc=0 (không crash NaN) — tự chạy lại, không tin lời báo cáo",
+        "walk_forward_validation chạy không crash, reports/walk_forward_report.json mtime mới và không còn là bản stale 18:55:42",
+        "top_prob_subset_analysis.json dùng net_result_r thật: có key net_result_source + baseline_net_positive_rate, subset PF khớp kỳ vọng ~1.165/1.305/1.278 tại th 0.2/0.25/0.4 (real net_result_r)",
+        "md5 stability: chụp 2 snapshot cách nhau, diff rỗng (không ghi đè artifact sau freeze — F1-RACE)",
+        "model.pkl/test_metrics/walk_forward/top-prob cùng prepare version (kiểm tra mtime/feature_names sync)",
+        "pytest 41/41 pass (tự chạy lại)",
+        "inference smoke: predict_with_model trên 1 row mới có NaN + string values → không crash"
+      ],
+      "deliverables": [
+        "QA verdict + bằng chứng thật (rc, md5, diff, nội dung JSON)"
+      ],
+      "reviewedTaskId": "t1",
+      "attemptId": "e7a487c3-0ff7-4ee7-9cd0-e716e985ecf3",
+      "reassigning": false,
+      "output": "QA độc lập PASS — tự chạy lại tất cả lệnh thật, không dựa lời báo cáo t1.\n\n(1) CLI: .venv/bin/xauusd-train tự chạy lại → rc=0, best=logistic_regression, PR-AUC=0.2275/ROC=0.6041, không NaN crash.\n(2) Source F3: train.py walk_forward_validation (L655-668) lấy impute_medians_fold từ train_result.get(\"impute_medians\") (tính trên X_train only tại L266-273/L370) và truyền vào calibrate_model + evaluate_on_test; train_model.py (L105-110) wire impute_medians vào calibrate_model/evaluate_on_test — đúng train-only, hết leak test-fold.\n(3) reports/walk_forward_report.json: mtime 2026-09-04 16:04:45 (mới, KHÔNG phải bản stale 18:55:42); 5 folds; strict-check không null/NaN; PR-AUC mean 0.3552. Tự gọi walk_forward_validation trực tiếp: 5 folds sạch, không NaN, không crash (mean PR-AUC 0.3537 — sai khác nhiễu RF).\n(4) reports/top_prob_subset_analysis.json: net_result_source=\"net_result_r (real labeled trade result column)\", baseline_net_positive_rate=0.4224, excluded_net_nan=1, model_features=30; OOS PF th0.2=1.1653 / th0.25=1.3045 / th0.4=1.2784 — khớp kỳ vọng ~1.165/1.305/1.278; không còn synthetic tp=2/sl=-1/time=0 (grep=0).\n(5) md5 stability: snapshot S0 khớp t1_rerun_md5_snapshot.json 13/13; sau khi chạy lại CLI (S1) diff rỗng; S2 diff rỗng → deterministic re-run, không ghi đè sau freeze. F1-RACE: chạy generator không --force → [skip] + md5 không đổi.\n(6) pytest: tự chạy .venv/bin/python -m pytest tests/ -q → 376 passed rc=0 (suite hiện 376 tests > con số 41 trong contract; tất cả pass).\n(7) Inference smoke: predict_with_model trên 1 row mới có NaN (2 cột imputable thật) + string cols → không crash, {probability: 0.0606, prediction: 0}.\n(8) model.pkl: dict chứa feature_names (30), impute_medians (2 cột: atr_percentile, equal_level_dispersion_atr), model, scaler.\n\nGhi chú (không phải finding): predict_with_model chỉ impute các cột có impute_medians; NaN ở cột khác (không bao giờ NaN trong train) sẽ crash — đúng thiết kế train-only imputation, ngoài contract. Verdict: PASS, sẵn sàng cho t3 re-freeze.",
+      "verdict": "pass",
+      "acceptanceResults": [
+        {
+          "criterion": "xauusd-train CLI chạy thật rc=0, không crash NaN (tự chạy lại)",
+          "status": "passed",
+          "evidence": ".venv/bin/xauusd-train tự chạy lại → rc=0, [xauusd-train] OK: best=logistic_regression pr_auc=0.2275; metrics file test PR-AUC 0.2275/ROC 0.6041 hợp lệ (model yếu trung thực, không NaN)"
+        },
+        {
+          "criterion": "walk_forward_validation + train_model.py truyền impute_medians vào calibrate_model/evaluate_on_test",
+          "status": "passed",
+          "evidence": "train.py L655-668: impute_medians_fold = train_result.get('impute_medians', {}) → calibrate_model(impute_medians=...) + evaluate_on_test(impute_medians=...); L266-273 medians fit trên X_train only; train_model.py L105-110 wire impute_medians; đã đọc code trực tiếp"
+        },
+        {
+          "criterion": "reports/walk_forward_report.json mtime mới, không phải bản stale, nội dung hợp lệ (không NaN)",
+          "status": "passed",
+          "evidence": "mtime 2026-09-04 16:04:45 (mới, không phải stale 18:55:42); 5 folds; strict JSON walk không null/NaN; PR-AUC mean 0.3552; tự gọi walk_forward_validation: 5 folds, không crash, không NaN"
+        },
+        {
+          "criterion": "top_prob_subset_analysis.json dùng net_result_r thật: net_result_source + baseline_net_positive_rate, PF ~1.165/1.305/1.278 tại th 0.2/0.25/0.4",
+          "status": "passed",
+          "evidence": "net_result_source='net_result_r (real labeled trade result column)'; baseline_net_positive_rate=0.4224; excluded_net_nan=1; OOS PF th0.2=1.1653, th0.25=1.3045, th0.4=1.2784 — khớp kỳ vọng; grep không còn synthetic tp=2/sl=-1/time=0"
+        },
+        {
+          "criterion": "md5 stability: 2 snapshot cách nhau, diff rỗng, không ghi đè sau freeze (F1-RACE)",
+          "status": "passed",
+          "evidence": "S0 khớp t1_rerun_md5_snapshot.json 13/13; sau CLI rerun S1 diff rỗng; S2 diff rỗng; generator không --force → [skip], md5 không đổi (guard F1-RACE hoạt động)"
+        },
+        {
+          "criterion": "pytest tự chạy lại pass",
+          "status": "passed",
+          "evidence": ".venv/bin/python -m pytest tests/ -q → 376 passed, 1 warning, rc=0 (suite 376 tests, lớn hơn con số 41 trong contract cũ — tất cả pass, 0 fail)"
+        },
+        {
+          "criterion": "inference smoke: predict_with_model trên 1 row mới (NaN + string) không crash",
+          "status": "passed",
+          "evidence": "row 1x32 (2 NaN ở cột imputable thật + 2 string cols noise) → predict ok {probability: 0.0606, prediction: 0}, rc=0, không crash"
+        },
+        {
+          "criterion": "model.pkl chứa key impute_medians + feature_names 30",
+          "status": "passed",
+          "evidence": "pickle load artifacts/models/model.pkl: dict keys [feature_names, impute_medians, model, scaler]; feature_names len=30; impute_medians 2 cột (atr_percentile, equal_level_dispersion_atr) — đồng bộ model_meta snapshot"
+        }
+      ]
+    },
+    {
+      "id": "t3",
+      "subject": "Re-freeze baseline v1.2.0 với metrics trung thực (thay số cũ leak)",
+      "description": "Re-freeze baseline v1.2.0 với metrics trung thực sau chuỗi repair (t1+t2). Cập nhật: (1) reports/bias_audit.md §8 mục W4 (re-freeze bị block) → RESOLVED, dẫn chứng từ t1/t2 (CLI rc=0, WF report mới, top-prob dùng net_result_r thật, pytest 41/41); (2) thay các con số frozen CŨ (ROC 0.981/PR 0.876/WF 0.968 — từ model leak 45 features) bằng metrics trung thực cuối: đọc reports/metrics/test_metrics.json (kỳ vọng pr_auc ~0.228, roc_auc ~0.605, brier ~0.156, positive_rate ~0.18) + reports/walk_forward_report.json (PR-AUC mean ~0.35); (3) kết luận trung thực: model sạch phân biệt YẾU (gần baseline positive rate), chỉ dùng để ranking; subset top-prob OOS PF>1 (1.165/1.305/1.278 tại th 0.2/0.25/0.4) nhưng n nhỏ (14-116), CI Wilson chứa baseline đa số, sau cost ~0.05R edge biến mất → chỉ mang tính gợi ý, KHÔNG trade ML nguyên trạng; (4) ghi rõ 'win'=hit 2R tp (177/974=18.17%) ≠ P(net_result_r>0)=0.422 — tránh nhầm lẫn đã từng xảy ra; (5) tạo freeze status doc liệt kê artifact + md5 đã đóng băng (lấy từ md5 snapshot của t1); (6) không chạm code — chỉ sửa báo cáo. Workdir: xauusd-liquidity-sweep/. Báo cáo tiếng Việt.",
+      "status": "completed",
+      "assignee": "Lead_Integrator",
+      "dependencies": [
+        "t2"
+      ],
+      "attempt": 1,
+      "createdAt": 1788505247605,
+      "updatedAt": 1788506978685,
+      "kind": "integration",
+      "objective": "Đóng băng baseline v1.2.0 với metrics trung thực (thay số frozen leak cũ), cập nhật bias_audit.md W4 RESOLVED, viết kết luận trung thực + freeze status doc.",
+      "inScope": [
+        "xauusd-liquidity-sweep/reports/"
+      ],
+      "acceptance": [
+        "bias_audit.md §8 W4 (re-freeze) được đánh dấu RESOLVED với bằng chứng từ t1+t2",
+        "các con số frozen cũ (ROC 0.981/PR 0.876/WF 0.968 — leak) được thay bằng metrics trung thực cuối cùng (test PR-AUC ~0.228/ROC ~0.605; WF PR-AUC ~0.35 — lấy từ report mới)",
+        "kết luận trung thực: model phân biệt yếu, chỉ ranking; subset top-prob OOS PF>1 nhưng n nhỏ + CI chứa baseline + cost ~0.05R làm edge biến mất — không trade ML nguyên trạng",
+        "ghi rõ 'win' (hit 2R tp 18.2%) ≠ P(net_result_r>0) (42.2%) — hết nhầm lẫn",
+        "freeze status doc (ví dụ reports/freeze_status_v1.2.0.md hoặc tương đương) liệt kê các artifact + md5 đã đóng băng",
+        "kết luận bằng tiếng Việt, ngắn gọn"
+      ],
+      "deliverables": [
+        "reports/bias_audit.md (cập nhật)",
+        "reports/freeze_status_v1.2.0.md (hoặc tương đương)"
+      ],
+      "attemptId": "3fe3af8e-147f-4b64-a2c1-34481ce1b3aa",
+      "reassigning": false,
+      "output": "Re-freeze baseline v1.2.0 hoàn tất với metrics trung thực (không chạm code, không đụng 13 artifact đã md5-freeze — xác minh 13/13 trùng snapshot). Deliverables: (1) mới reports/freeze_status_v1.2.0.md — artifact+md5 (13 file, nguồn t1_rerun_md5_snapshot.json), metrics thật (test PR-AUC 0.2275/ROC 0.6041/Brier 0.1561/positive_rate 0.1795; WF OOS PR-AUC mean 0.3552 5 folds; top-prob OOS PF 1.1653/1.3045/1.2784 tại th0.2/0.25/0.4, n=360/223/32), kết luận trung thực tiếng Việt 4 điểm; (2) bias_audit.md: W4 → RESOLVED v1.2.0 (bằng chứng t1+t2), §8.8 mới, §8.5/§8.6 + DoD cập nhật; (3) verification_checklist.json report_2 evidence đổi số leak cũ → số thật; (4) T16_baseline_freeze.md banner SUPERSEDED; (5) T21_leakage_audit.md verdict → re-freeze COMPLETED v1.2.0. Luận điểm trung thực: model sạch phân biệt YẾU chỉ ranking; subset top-prob PF>1 nhưng n nhỏ + Wilson 95% CI chứa baseline 42.24% (tính: th0.25 [37.6–50.5%], th0.4 [28.2–60.7%]) + cost ~0.05R → không trade ML nguyên trạng; 'win' 2R 177/974=18.17% ≠ P(net_result_r>0)=0.4224.",
+      "changedPaths": [
+        "reports/freeze_status_v1.2.0.md",
+        "reports/bias_audit.md",
+        "reports/verification_checklist.json",
+        "reports/integration/T16_baseline_freeze.md",
+        "reports/integration/T21_leakage_audit.md"
+      ],
+      "acceptanceResults": [
+        {
+          "criterion": "bias_audit.md §8 mục W4 (re-freeze) được đánh dấu RESOLVED với bằng chứng từ t1+t2",
+          "status": "passed",
+          "evidence": "bias_audit.md: W4 ledger row → 'RESOLVED — baseline re-frozen v1.2.0 with honest metrics (t21 verify; t22/t24 fix; team v2 t1 rerun + t2 QA + t3 freeze)' với bằng chứng CLI rc=0, pytest 376 passed, WF report tái sinh OOS PR-AUC 0.3552, F1-PAYOFF net_result_r thật (n=973), F1-RACE guard --force, md5 snapshot stable; thêm §8.8 'Re-freeze v1.2.0 — RESOLVED (t1+t2+t3)' + dấu ✅ ở §8.5/§8.6 + DoD paragraph cập nhật; header ghi last updated 2026-09-04"
+        },
+        {
+          "criterion": "các con số frozen cũ (ROC 0.981/PR 0.876/WF 0.968 — leak) được thay bằng metrics trung thực cuối cùng (test PR-AUC ~0.228/ROC ~0.605; WF PR-AUC ~0.35 — lấy từ report mới)",
+          "status": "passed",
+          "evidence": "freeze_status_v1.2.0.md §2 đọc trực tiếp reports/metrics/test_metrics.json (PR-AUC 0.2275, ROC-AUC 0.6041, Brier 0.1561, positive_rate 0.1795) + walk_forward_report.json (PR-AUC mean 0.3552, ROC-AUC mean 0.7219, 5 folds); verification_checklist.json report_2 evidence thay số leak cũ bằng số thật + ghi SUPERSEDED; T16_baseline_freeze.md banner SUPERSEDED chỉ rõ số cũ invalid; bias_audit §8.6/§8.8 cập nhật"
+        },
+        {
+          "criterion": "kết luận trung thực: model phân biệt yếu, chỉ ranking; subset top-prob OOS PF>1 nhưng n nhỏ + CI chứa baseline + cost ~0.05R làm edge biến mất — không trade ML nguyên trạng",
+          "status": "passed",
+          "evidence": "freeze_status_v1.2.0.md §4 + bias_audit §8.8: model YẾU (test PR-AUC 0.2275 ≈ baseline positive_rate 0.1795, ROC 0.6041) → chỉ ranking; top-prob OOS PF>1 (th0.2/0.25/0.4 = 1.1653/1.3045/1.2784) nhưng n=360/223/32 và Wilson 95% CI tính toán thực (th0.25 [37.6–50.5%], th0.4 [28.2–60.7%]) đều chứa baseline 42.24%; cost config hiện = 0 (net_result_r ≈ gross) → chi phí thực ~0.05R triệt tiêu biên → KHÔNG trade ML nguyên trạng"
+        },
+        {
+          "criterion": "ghi rõ 'win' (hit 2R tp 18.2%) ≠ P(net_result_r>0) (42.2%) — hết nhầm lẫn",
+          "status": "passed",
+          "evidence": "freeze_status_v1.2.0.md §4.4 và bias_audit §8.8 ghi rõ: 'win' = hit 2R tp = 177/974 = 18.17% (baseline_win_rate 0.1817) ≠ P(net_result_r>0) = 0.4224 — hai định nghĩa khác nhau, không so sánh trực tiếp"
+        },
+        {
+          "criterion": "freeze status doc (ví dụ reports/freeze_status_v1.2.0.md hoặc tương đương) liệt kê các artifact + md5 đã đóng băng",
+          "status": "passed",
+          "evidence": "Đã tạo reports/freeze_status_v1.2.0.md §3: bảng 13 artifact + md5 lấy chính xác từ reports/integration/t1_rerun_md5_snapshot.json (13/13 file), dataset 1 prepare version (fac22cea…), determinism diff rỗng; xác minh lại md5 hiện tại 13/13 trùng snapshot"
+        },
+        {
+          "criterion": "kết luận bằng tiếng Việt, ngắn gọn",
+          "status": "passed",
+          "evidence": "freeze_status_v1.2.0.md §4 'Kết luận trung thực (tiếng Việt)' 4 điểm ngắn gọn; báo cáo giao task tới captain bằng tiếng Việt"
+        }
+      ],
+      "commandsRun": []
+    },
+    {
+      "id": "t4",
+      "subject": "Phân tích định lượng: chất lượng level_type × trend-context × stop buffer regime",
+      "description": "Phân tích định lượng dựa trên quan sát chart của user (event_charts_v2): (1) Chất lượng theo level_type — tách 974 events theo level_type (rolling/swing/equal/prev_day) tính win_rate (hit 2R), P(net_result_r>0), avg_net_r, PF dùng net_result_r THẬT + Wilson 95% CI — kiểm tra giả thuyết swing/equal/prev_day tốt hơn rolling (case thắng: LVL-020791 equal_high, LVL-023344 equal_high, LVL-025112 swing_high; thua rolling_low trước đó). (2) Trend-context: tách theo h1_trend causal tại event time vs direction — nhóm 'sweep cùng chiều trend H1' (catch-the-knife: LVL-000561 short tại prev_day_high giữa nhịp tăng mạnh, LVL-002241 long tại equal_low giữa downtrend) vs 'ngược trend' — PF/win rate mỗi nhóm, chéo level_type. (3) Stop buffer theo regime: MAE_R của lệnh thua giữa volatility_regime thấp vs cao — test giả thuyết buffer 0.10 ATR quá hẹp ở regime thấp (case LVL-003144 swing_low, entry 1756.64 target 1757.03, risk <0.4). Dùng features causal có sẵn (h1_trend, level_type, volatility_regime, mae_r_h16, net_result_r). KHÔNG sửa src/artifacts/data, chỉ đọc frozen dataset + viết vào thư mục MỚI reports/analysis/. Workdir xauusd-liquidity-sweep/, interpreter .venv/bin/python, seed 42.",
+      "status": "completed",
+      "assignee": "ML_Engineer",
+      "dependencies": [],
+      "attempt": 1,
+      "createdAt": 1788509065624,
+      "updatedAt": 1788510574485,
+      "kind": "implementation",
+      "round": 1,
+      "objective": "Định lượng hóa giả thuyết từ chart review: (a) level_type chất lượng khác nhau (swing/equal/prev_day vs rolling), (b) trend-context gây catch-the-knife, (c) stop buffer 0.10 ATR quá hẹp ở volatility regime thấp — bằng phân tích có kiểm chứng (CI) trên 974 events frozen, dùng net_result_r thật.",
+      "inScope": [
+        "xauusd-liquidity-sweep/scripts/",
+        "xauusd-liquidity-sweep/reports/analysis/"
+      ],
+      "outOfScope": [
+        "xauusd-liquidity-sweep/src/",
+        "xauusd-liquidity-sweep/artifacts/",
+        "xauusd-liquidity-sweep/data/",
+        "xauusd-liquidity-sweep/reports/freeze_status_v1.2.0.md",
+        "xauusd-liquidity-sweep/reports/bias_audit.md"
+      ],
+      "acceptance": [
+        "Script phân tích chạy được bằng .venv/bin/python, rc=0, deterministic (chạy 2 lần diff rỗng)",
+        "Bảng level_type_quality: 974 events (973 net-valid) tách theo level_type (rolling/swing/equal/prev_day, long+short): n, win_rate (hit 2R), P(net>0), avg_net_r, PF dùng net_result_r THẬT, kèm Wilson 95% CI",
+        "Bảng trend_context: tách theo h1_trend tại event time (causal) vs direction sweep — nhóm 'cùng chiều trend H1 mạnh' vs 'ngược trend/trend yếu' — mỗi nhóm n, win_rate, P(net>0), avg_net_r, PF + CI; phân tích chéo với level_type (rolling/swing/equal/prev_day)",
+        "Phân tích MAE: với các lệnh thua (net_result_r<0), so MAE_R trung bình/phân vị giữa nhóm volatility_regime thấp vs cao (dùng mae_r_h16 hoặc mae tương ứng 2R/h16); kiểm tra giả thuyết stop buffer 0.10 ATR quá sát ở regime thấp (case LVL-003144)",
+        "Deliverables: reports/analysis/level_type_quality.{json,md}, reports/analysis/trend_context_analysis.{json,md}, reports/analysis/stop_buffer_regime.{json,md} (thư mục mới — KHÔNG đụng report frozen md5)",
+        "Script nằm scripts/analyze_... KHÔNG sửa src/, artifacts/, data/ — chỉ đọc frozen dataset"
+      ],
+      "verify": [
+        ".venv/bin/python scripts/analyze_level_quality.py rc=0 (chạy 2 lần, diff rỗng = deterministic)",
+        "n tổng cộng theo level_type + trend nhóm khớp 973/974 net-valid",
+        "so sánh chéo thủ công 3 case: LVL-020791/023344/025112 thắng, LVL-000561/002241/003144 thua trong file JSON"
+      ],
+      "deliverables": [
+        "scripts/analyze_level_quality.py (hoặc tương đương)",
+        "reports/analysis/level_type_quality.json",
+        "reports/analysis/level_type_quality.md",
+        "reports/analysis/trend_context_analysis.json",
+        "reports/analysis/trend_context_analysis.md",
+        "reports/analysis/stop_buffer_regime.json",
+        "reports/analysis/stop_buffer_regime.md"
+      ],
+      "nonGoals": [
+        "KHÔNG sửa model/source/frozen artifacts",
+        "KHÔNG thay đổi baseline v1.2.0",
+        "KHÔNG viết đè report frozen (md5 13 artifacts giữ nguyên)"
+      ],
+      "attemptId": "79c45155-deed-4fc0-9ed9-a718e0043baa",
+      "reassigning": false,
+      "output": "T4 hoàn tất — phân tích định lượng level_type × trend-context × stop-buffer regime trên 974 events frozen (973 net-valid), dùng net_result_r THẬT + Wilson 95% CI, deterministic (2 lần chạy diff rỗng).\n\n(1) level_type_quality: swing n=473 win 18.2% PF 1.079; equal n=487 win 18.5% PF 1.010; prev_day n=14 win 7.1% PF 0.278; rolling n=0 trong frozen 974 (feature pipeline gán structural level cho mọi confirmed event — ghi chú rõ). Auxiliary review-pool (manual_review_v2, n=150 net-parseable): rolling(confirmed) n=71 P(net>0)=0.507 PF 1.788 vs equal n=27 PF 1.324 / swing n=28 PF 0.588 / prev_day n=24 PF 0.400. Cross-check 6 chart case: LVL-020791/023344/025112 = tp net +2.0 (winners), LVL-000561/002241/003144 = sl net -1.0 (losers) — match=True cả 6.\n\n(2) trend_context: nhóm sweep_cung_chieu_trend_h1 (catch-the-knife: short khi H1 up / long khi H1 down) n=699 win 16.5% PF 0.980; nhóm sweep_nguoc_trend (long khi H1 up / short khi H1 down) n=275 win 22.5% PF 1.149. 2x2 direction×h1_trend + cross level_type đầy đủ. Kết luận: nhóm với-trend tốt hơn counter-trend (PF 1.15 vs 0.98) — chart cases LVL-000561/LVL-002241 nằm đúng nhóm knife.\n\n(3) stop_buffer_regime (562 losers): MAE_R low-regime median 1.874 mean 2.365 vs high-regime median 1.289 mean 1.609 — Mann-Whitney U p=5.3e-09 (khác biệt có ý nghĩa). Low-regime losers bị stop nhiều hơn (87.8% vs 62.9%) và pierce qua stop sâu hơn (median ~0.87R vs ~0.29R beyond stop). Buffer 0.10·ATR chỉ ~5% risk. Ủng hộ giả thuyết buffer quá hẹp ở regime thấp (case LVL-003144) với caveat: mae_r_h16 tính cả intrabar của exit bar.\n\nDeliverables: scripts/analyze_level_quality.py + reports/analysis/{level_type_quality,trend_context_analysis,stop_buffer_regime}.{json,md} — thư mục analysis MỚI, không đụng frozen reports/md5.",
+      "changedPaths": [
+        "xauusd-liquidity-sweep/scripts/analyze_level_quality.py",
+        "xauusd-liquidity-sweep/reports/analysis/level_type_quality.json",
+        "xauusd-liquidity-sweep/reports/analysis/level_type_quality.md",
+        "xauusd-liquidity-sweep/reports/analysis/trend_context_analysis.json",
+        "xauusd-liquidity-sweep/reports/analysis/trend_context_analysis.md",
+        "xauusd-liquidity-sweep/reports/analysis/stop_buffer_regime.json",
+        "xauusd-liquidity-sweep/reports/analysis/stop_buffer_regime.md"
+      ],
+      "acceptanceResults": [
+        {
+          "criterion": "Script phân tích chạy được bằng .venv/bin/python, rc=0, deterministic (chạy 2 lần diff rỗng)",
+          "status": "passed",
+          "evidence": ".venv/bin/python scripts/analyze_level_quality.py rc=0 (4 lần chạy sau sửa, đều EXIT=0); diff -r giữa 2 lần chạy liên tiếp = rỗng => deterministic"
+        },
+        {
+          "criterion": "Bảng level_type_quality: 974 events (973 net-valid) tách theo level_type (rolling/swing/equal/prev_day, long+short): n, win_rate (hit 2R), P(net>0), avg_net_r, PF dùng net_result_r THẬT, kèm Wilson 95% CI",
+          "status": "passed",
+          "evidence": "reports/analysis/level_type_quality.json rows: rolling n=0 / swing n=473 win 0.1818 PF 1.079 / equal n=487 win 0.1852 PF 1.010 / prev_day n=14 win 0.0714 PF 0.278; n sum 974, net-valid 973; Wilson CI trên win_rate & P(net>0); rolling n=0 do frozen 974 không có rolling attribution (ghi chú + aux review-pool rolling n=71 PF 1.788)"
+        },
+        {
+          "criterion": "Bảng trend_context: tách theo h1_trend tại event time (causal) vs direction sweep — nhóm 'cùng chiều trend H1 mạnh' vs 'ngược trend/trend yếu' — mỗi nhóm n, win_rate, P(net>0), avg_net_r, PF + CI; phân tích chéo với level_type",
+          "status": "passed",
+          "evidence": "trend_context_analysis.json: 2x2 direction×h1_trend (4 cells) + sweep_cung_chieu_trend_h1 n=699 win 0.1648 PF 0.980 vs sweep_nguoc_trend n=275 win 0.2255 PF 1.149; cross level_type (rolling/swing/equal/prev_day) mỗi nhóm; h1_trend là EMA(50) slope sign causal tại event bar"
+        },
+        {
+          "criterion": "Phân tích MAE: với các lệnh thua (net_result_r<0), so MAE_R trung bình/phân vị giữa nhóm volatility_regime thấp vs cao (dùng mae_r_h16 hoặc mae tương ứng 2R/h16); kiểm tra giả thuyết stop buffer 0.10 ATR quá sát ở regime thấp (case LVL-003144)",
+          "status": "passed",
+          "evidence": "stop_buffer_regime.json/md: 562 losers (448 stop + 114 time); low n=230 MAE median 1.874 mean 2.365 vs high n=151 median 1.289 mean 1.609; MWU p=5.3e-09; stop share low 87.8% vs high 62.9%; 0.10*ATR buffer ~5% risk; LVL-003144 cross-check net=-1.0 sl match=True"
+        },
+        {
+          "criterion": "Deliverables: reports/analysis/level_type_quality.{json,md}, trend_context_analysis.{json,md}, stop_buffer_regime.{json,md} (thư mục mới — KHÔNG đụng report frozen md5)",
+          "status": "passed",
+          "evidence": "6 files mới trong reports/analysis/ (json+md mỗi loại); không sửa src/, data/, artifacts/, không chạm 13 frozen report md5"
+        },
+        {
+          "criterion": "Script nằm scripts/analyze_... KHÔNG sửa src/, artifacts/, data/ — chỉ đọc frozen dataset",
+          "status": "passed",
+          "evidence": "scripts/analyze_level_quality.py chỉ đọc data/processed/labeled_events.parquet + reports/manual_review_v2.csv + event_charts_v2 (read-only), ghi vào reports/analysis/"
+        }
+      ],
+      "commandsRun": [
+        {
+          "command": ".venv/bin/python scripts/analyze_level_quality.py rc=0 (chạy 2 lần diff rỗng)",
+          "status": "passed",
+          "exitCode": 0,
+          "evidence": "4 lần chạy đều rc=0; diff -r /tmp/a3 reports/analysis/ sau 2 lần liên tiếp = rỗng"
+        },
+        {
+          "command": "n tổng theo level_type + trend group khớp 973/974 net-valid",
+          "status": "passed",
+          "exitCode": 0,
+          "evidence": "level_type n sum=974 net-valid=973; trend groups 699+275=974 net-valid=973 — assert trong script + console"
+        },
+        {
+          "command": "so sánh chéo 6 case trong file JSON",
+          "status": "passed",
+          "exitCode": 0,
+          "evidence": "level_type_quality.json chart_cases: LVL-020791/023344/025112 expected=win actual=tp net=2.0 match=True; LVL-000561/002241/003144 expected=loss actual=sl net=-1.0 match=True"
+        }
+      ]
+    },
+    {
+      "id": "t5",
+      "subject": "Phân tích model PR-AUC/PF tách theo level_type (loại rolling)",
+      "description": "Kiểm tra giả thuyết #4 của user: model bị pha loãng bởi event rolling level chất lượng thấp. Chạy lại phân tích PR-AUC/PF tách theo level_type: với từng nhóm level_type (rolling/swing/equal/prev_day) và nhóm gộp loại rolling ('swing+equal+prev_day' only), tính PR-AUC/ROC-AUC trên OOS probabilities (cross_val_predict 5-fold seed 42 hoặc walk-forward có purge+embargo — KHÔNG in-sample), PF subset top-prob th 0.2/0.25/0.4 dùng net_result_r THẬT (bài học F1-PAYOFF). Xác nhận/bác bỏ: 'chỉ giữ swing/equal/prev_day thì PR-AUC/PF cải thiện so với 0.2275/PF~1 tổng hợp'. Nếu n nhỏ sau lọc (vd prev_day riêng <30) ghi rõ, không kết luận chắc. KHÔNG sửa src/artifacts/data/frozen reports — chỉ đọc + viết reports/analysis/. Workdir xauusd-liquidity-sweep/, interpreter .venv/bin/python.",
+      "status": "completed",
+      "assignee": "ML_Engineer",
+      "dependencies": [
+        "t4"
+      ],
+      "attempt": 1,
+      "createdAt": 1788509105646,
+      "updatedAt": 1788513102307,
+      "kind": "implementation",
+      "objective": "Xác định định lượng: model PR-AUC/PF có cải thiện khi phân tích chỉ trên nhóm level chất lượng cao (swing+equal+prev_day, loại rolling) so với toàn bộ 974 events — dùng OOS probabilities + net_result_r thật + Wilson CI.",
+      "inScope": [
+        "xauusd-liquidity-sweep/scripts/",
+        "xauusd-liquidity-sweep/reports/analysis/"
+      ],
+      "outOfScope": [
+        "xauusd-liquidity-sweep/src/",
+        "xauusd-liquidity-sweep/artifacts/",
+        "xauusd-liquidity-sweep/data/"
+      ],
+      "acceptance": [
+        "Script chạy .venv/bin/python rc=0, deterministic 2 lần diff rỗng",
+        "Phân tích per-level_type trên OOS probabilities (5-fold CV hoặc walk-forward có purge+embargo — KHÔNG in-sample): với mỗi nhóm level_type (rolling/swing/equal/prev_day) và nhóm gộp 'swing+equal+prev_day' (loại rolling): n, PR-AUC, ROC-AUC, baseline P(net>0), PF top-prob subset (th 0.2/0.25/0.4) dùng net_result_r thật",
+        "So sánh rõ: PR-AUC/PF nhóm 'loại rolling' vs toàn bộ (0.2275/0.3552 hiện tại) — xác nhận hay bác bỏ giả thuyết rolling làm pha loãng",
+        "Lưu ý n nhỏ + Wilson CI — kết luận thận trọng, không overclaim",
+        "Deliverables: reports/analysis/level_type_model_analysis.{json,md} + script scripts/analyze_level_model.py (thư mục analysis mới, KHÔNG đụng frozen)"
+      ],
+      "verify": [
+        ".venv/bin/python scripts/analyze_level_model.py rc=0 (2 lần diff rỗng)",
+        "đối chiếu PR-AUC toàn bộ với test_metrics.json frozen (0.2275) để xác nhận cùng phương pháp"
+      ],
+      "deliverables": [
+        "scripts/analyze_level_model.py",
+        "reports/analysis/level_type_model_analysis.json",
+        "reports/analysis/level_type_model_analysis.md"
+      ],
+      "nonGoals": [
+        "KHÔNG sửa src/modeling",
+        "KHÔNG thay đổi model.pkl/baseline v1.2.0",
+        "KHÔNG viết đè frozen reports"
+      ],
+      "attemptId": "825b9044-37b8-4029-9dd7-56c87e56b4e8",
+      "reassigning": false,
+      "output": "T5 completed — per-level_type model PR-AUC/PF analysis (hypothesis #4, rolling dilution) done deterministically rc=0 (3 runs, stdout diff rỗng, output files byte-stable).\n\nKEY FINDING: hypothesis #4 NOT SUPPORTED inside the frozen model pool — level_type='rolling' has n=0 in the frozen 974 (every confirmed event is a baseline rolling-level sweep whose level_type column = registry STRUCTURAL attribution equal/swing/prev_day). Therefore pooled 'swing+equal+prev_day' IS the whole pool (n=974, identity asserted in-script): pooled PR-AUC == whole CV-OOS PR-AUC == 0.2546 → 'excluding rolling' cannot change anything.\n\nPer-level_type (OOS 5-fold CV seed 42, same protocol as frozen top-prob report; real net_result_r; Wilson 95% CI):\n- swing n=473: PR-AUC 0.2510 / ROC 0.6144 / P(net>0) 0.4334 [0.3895-0.4784] / PF 1.0788; top-prob PF: th0.2 1.3113 (196), th0.25 1.4030 (124), th0.4 1.4452 (19)\n- equal n=487: PR-AUC 0.2663 / ROC 0.6155 / P(net>0) 0.4177 [0.3747-0.4620] / PF 1.0100; top-prob PF: 1.0169 (165)/1.1982 (99)/1.0886 (13)\n- prev_day n=14 (<30, no firm conclusion): PR-AUC 0.1000 / ROC 0.3077 / PF 0.2783; 0 events above any threshold\n- pooled = whole n=974: PR-AUC 0.2546 / ROC 0.6164 / PF 1.0279; top-prob PF 1.1653/1.3045/1.2784 = frozen top-prob OOS table (PASS)\n\nMethod parity anchors (verify bullets): (1) frozen-method reproduction — saved calibrated model on frozen CLI test split → PR-AUC 0.227544 == reports/metrics/test_metrics.json 0.227544 (PASS); (2) whole-pool CV-OOS PF th0.2/0.25/0.4 = 1.1653/1.3045/1.2784 with n_net 360/223/32 == frozen top_prob_subset_analysis.json OOS rows (PASS); walk-forward frozen mean 0.3552 cited. 13/13 frozen artifact md5 unchanged vs t1_rerun_md5_snapshot.json (0 mismatches) — only reports/analysis/ + scripts/ written.\n\nDeliverables: scripts/analyze_level_model.py + reports/analysis/level_type_model_analysis.{json,md}.",
+      "changedPaths": [
+        "xauusd-liquidity-sweep/scripts/analyze_level_model.py",
+        "xauusd-liquidity-sweep/reports/analysis/level_type_model_analysis.json",
+        "xauusd-liquidity-sweep/reports/analysis/level_type_model_analysis.md"
+      ],
+      "acceptanceResults": [
+        {
+          "criterion": "Script chạy .venv/bin/python rc=0, deterministic 2 lần diff rỗng",
+          "status": "passed",
+          "evidence": "3 runs rc=0 (run1/run2/run3); stdout diff rỗng; md5 JSON 2770262d... và md c1b4cd19... stable across reruns"
+        },
+        {
+          "criterion": "Per-level_type OOS analysis with n, PR-AUC, ROC-AUC, baseline P(net>0), PF top-prob subset th0.2/0.25/0.4 dùng net_result_r thật",
+          "status": "passed",
+          "evidence": "5-fold CV seed 42 OOS (protocol identical to frozen top-prob report; verified by whole-pool PF parity 1.1653/1.3045/1.2784). Rows for rolling(n=0)/swing(473)/equal(487)/prev_day(14)/pooled(974) in level_type_model_analysis.json; PF from real net_result_r (1 ambiguous NaN excluded)"
+        },
+        {
+          "criterion": "So sánh rõ PR-AUC/PF nhóm 'loại rolling' vs toàn bộ — xác nhận hay bác bỏ giả thuyết",
+          "status": "passed",
+          "evidence": "Rolling n=0 trong model pool → pooled swing+equal+prev_day == whole (in-script identity assert); pooled PR-AUC == whole CV-OOS 0.2546. Verdict: hypothesis #4 NOT SUPPORTED at model level; 0.2275 test-split reproduced exactly (0.227544); WF mean 0.3552 cited. Rolling-vs-structural chỉ testable ở review pool (t4: rolling/confirmed PF 1.788 trên n=71, không phải nhóm tệ nhất)"
+        },
+        {
+          "criterion": "Lưu ý n nhỏ + Wilson CI, kết luận thận trọng",
+          "status": "passed",
+          "evidence": "Wilson 95% CI trên mọi P(net>0); prev_day n=14 <30 flagged small_n, no firm conclusion; th>=0.4 subset counts nhỏ (13-32) được ghi rõ; không overclaim"
+        },
+        {
+          "criterion": "Deliverables đúng vị trí, không đụng frozen",
+          "status": "passed",
+          "evidence": "reports/analysis/level_type_model_analysis.{json,md} + scripts/analyze_level_model.py; 13/13 artifact md5 khớp t1_rerun_md5_snapshot.json (0 mismatch)"
+        }
+      ],
+      "commandsRun": [
+        {
+          "command": ".venv/bin/python scripts/analyze_level_model.py",
+          "status": "passed",
+          "exitCode": 0,
+          "evidence": "2 runs rc=0, stdout diff rỗng, output md5 stable; anchors PASS (test-split PR-AUC 0.227544 repro; top-prob PF parity 1.1653/1.3045/1.2784)"
+        },
+        {
+          "command": "md5 integrity check vs reports/integration/t1_rerun_md5_snapshot.json",
+          "status": "passed",
+          "exitCode": 0,
+          "evidence": "13/13 frozen artifact md5 unchanged (0 mismatches)"
+        }
+      ]
+    },
+    {
+      "id": "t6",
+      "subject": "QA độc lập: review phân tích level_type × trend-context × model-per-level",
+      "description": "QA độc lập review chuỗi phân tích t4+t5 (giả thuyết user: level_type chất lượng khác nhau, trend-context catch-the-knife, stop buffer regime, model pha loãng bởi rolling). Tự chạy lại 2 script phân tích, xác minh: (1) dùng net_result_r thật không synthetic; (2) OOS không in-sample; (3) n tổng khớp 973/974; (4) so chéo case chart LVL-020791/023344/025112 (thắng) + LVL-000561/002241/003144 (thua) xuất hiện đúng nhóm; (5) QUAN TRỌNG: kiểm tra 13 frozen artifact md5 không đổi (so t1_rerun_md5_snapshot.json) — phân tích KHÔNG được đụng baseline v1.2.0. Verdict PASS chỉ khi bằng chứng thật. Workdir xauusd-liquidity-sweep/, interpreter .venv/bin/python.",
+      "status": "completed",
+      "assignee": "QA_Auditor",
+      "dependencies": [],
+      "attempt": 1,
+      "createdAt": 1788509126935,
+      "updatedAt": 1788513592466,
+      "kind": "review",
+      "round": 1,
+      "objective": "Đảm bảo chuỗi phân tích t4+t5 trung thực, tái lập, không đụng frozen baseline, và các con số dùng để khuyến nghị là đáng tin (net_result_r thật + OOS + CI).",
+      "acceptance": [
+        "Tự chạy lại scripts/analyze_level_quality.py + scripts/analyze_level_model.py bằng .venv/bin/python rc=0 (không tin lời báo cáo)",
+        "Xác minh methodology: net_result_r THẬT cho PF (không synthetic), OOS probabilities (cross_val/walk-forward) không in-sample, Wilson CI hiện diện",
+        "Xác minh n tổng khớp 973/974 net-valid; so chéo thủ công ≥3 case chart (LVL-020791/023344/025112 thắng, LVL-000561/002241/003144 thua) khớp phân nhóm trong JSON",
+        "Không có file frozen bị ghi đè: kiểm tra mtime/md5 13 artifact trong t1_rerun_md5_snapshot.json không đổi sau khi chạy phân tích"
+      ],
+      "deliverables": [
+        "QA verdict + bằng chứng thật (rc, md5 13 artifact không đổi, n khớp, case chéo)"
+      ],
+      "reviewedTaskId": "t5",
+      "attemptId": "ebee2a55-abf6-4949-b65d-b7de017c47e4",
+      "reassigning": false,
+      "output": "QA độc lập PASS (verdict=pass) — tự chạy lại 2 script 3 lần, không dựa lời báo cáo.\n\nBẰNG CHỨNG THẬT:\n(1) rc=0: analyze_level_quality.py ×3, analyze_level_model.py ×3 — deterministic tuyệt đối (stdout diff rỗng, md5 8 file reports/analysis/ không đổi run1→run3).\n(2) Methodology đúng: net_result_r THẬT (không synthetic); model analysis OOS = 5-fold CV seed 42 (không in-sample) với 2 parity anchor PASS — test-split PR-AUC repro 0.227544 == test_metrics.json, top-prob PF 1.1653/1.3045/1.2784 (n_net 360/223/32) trùng frozen top_prob OOS table; WF mean 0.3552 trùng frozen report; Wilson 95% CI ở mọi bảng.\n(3) n khớp: 974 total / 973 net-valid — assert trong script + JSON (level_type sums 974, trend 699+275=974, pooled 974 == whole identity PASS).\n(4) Case chart: 6/6 match=True đúng nhóm (LVL-020791/023344/025112 tp +2.0 winners; LVL-000561/002241/003144 sl -1.0 losers), folder membership ls xác nhận 6/6. Lưu ý trung thực: 6 case thuộc review-round-2 pool (manual_review_v2.csv), KHÔNG trong frozen 974 — script ghi rõ.\n(5) Frozen integrity: md5 13/13 không đổi trước + sau 3 lần chạy (0 mismatch) — phân tích không đụng baseline v1.2.0.\n(6) Số khớp kỳ vọng captain: swing n=473 PR 0.2510, equal n=487 PR 0.2663, prev_day n=14 (nhỏ, không kết luận), pooled PR 0.2546 ROC 0.6164, top-prob PF pooled 1.1653/1.3045/1.2784, test PR-AUC 0.227544, WF 0.3552.\n\nPHÁT HIỆN CHÍNH (t5): hypothesis #4 (rolling pha loãng model) KHÔNG được hỗ trợ trong frozen pool — level_type='rolling' n=0 trong 974 (mọi confirmed event là baseline rolling sweep nhưng level_type column mang registry structural level). Pooled 'swing+equal+prev_day' == whole pool (n=974, identity assert). prev_day n=14 <30 — không kết luận. Không có per-level_type filter nào được hỗ trợ như improver đáng tin trên OOS.\n\nGHI CHÚ low (không chặn, đề xuất bổ sung md cho minh bạch): stop_buffer_regime rows theo regime sum 561, scope nói 562 losers — 1 loser (SWP-000006) có volatility_regime=NaN bị loại ngầm khỏi bảng regime. Không ảnh hưởng kết luận (MWU low-vs-high p=5.3e-9 vẫn significant, stop share 87.8% vs 62.9% đúng).\n\n→ Sẵn sàng cho t7 (tổng hợp bằng chứng + khuyến nghị).",
+      "verdict": "pass",
+      "acceptanceResults": [
+        {
+          "criterion": "Tự chạy lại scripts/analyze_level_quality.py + analyze_level_model.py bằng .venv/bin/python rc=0",
+          "status": "passed",
+          "evidence": "Chạy 3 lần mỗi script: quality rc=0 (3/3), model rc=0 (3/3). stdout diff rỗng run2 vs run3 (cả 2 script); md5 8 output files reports/analysis/ giữ nguyên qua run1→run3 → deterministic tuyệt đối"
+        },
+        {
+          "criterion": "Xác minh methodology: net_result_r THẬT, OOS không in-sample, Wilson CI hiện diện",
+          "status": "passed",
+          "evidence": "(1) net_stats/net_pf đọc REAL net_result_r column (NaN excluded); chart cases parse net_result_r thật từ notes (win=net>0, loss=net<0). (2) analyze_level_model.py dùng cross_val_predict 5-fold seed 42 (OOS) — KHÔNG in-sample; parity anchors PASS: frozen test-split PR-AUC repro 0.227544 == test_metrics.json; top-prob PF th0.2/0.25/0.4 = 1.165285/1.304533/1.278358 vs frozen OOS 1.1653/1.3045/1.2784 PASS kèm n_net 360/223/32 trùng; WF mean 0.3552 đọc từ frozen report. (3) Wilson 95% CI hiện diện ở mọi bảng (win_rate, P(net>0), top-prob subsets)"
+        },
+        {
+          "criterion": "Xác minh n tổng khớp 973/974 net-valid",
+          "status": "passed",
+          "evidence": "Cả 2 script assert 974 events + 973 net-valid và chạy qua (rc=0). JSON: level_type_quality n_total=974/n_net_valid=973, trend_context n_total=974/n_net_valid=973; level_type rows sum 974, trend groups 699+275=974, net-valid 973; model analysis rows rolling 0 + swing 473 + equal 487 + prev_day 14 = 974, pooled n=974 == whole (identity assert in-script PASS)"
+        },
+        {
+          "criterion": "So chéo case chart LVL-020791/023344/025112 (thắng) + LVL-000561/002241/003144 (thua) khớp phân nhóm",
+          "status": "passed",
+          "evidence": "6/6 match=True trong level_type_quality.json chart_cases: LVL-020791 (equal_high, tp +2.0, winners/), LVL-023344 (equal_high, tp +2.0, winners/), LVL-025112 (swing_high, tp +2.0, winners/); LVL-000561 (prev_day_high_894, sl -1.0, losers/), LVL-002241 (equal_low_3741, sl -1.0, losers/), LVL-003144 (swing_low_5559, sl -1.0, losers/). Folder membership verified bằng ls: 6/6 đúng winners/losers. Lưu ý trung thực: 6 case thuộc review-round-2 pool (manual_review_v2.csv, level_sweep) — KHÔNG nằm trong frozen 974 (đã kiểm tra event_id/level_id overlap = rỗng); script ghi rõ đây là chart ground truth từ review pool"
+        },
+        {
+          "criterion": "Không file frozen bị ghi đè: md5 13 artifact trong t1_rerun_md5_snapshot.json không đổi sau khi chạy phân tích",
+          "status": "passed",
+          "evidence": "md5 13/13 khớp snapshot trước khi chạy (0 mismatch) và sau 3 lần chạy cả 2 script (0/13 mismatch, POST-RUN check). Phân tích chỉ ghi vào reports/analysis/ (8 file mới) + scripts/ (2 script) — không đụng src/, artifacts/, data/, frozen reports"
+        }
+      ]
+    },
+    {
+      "id": "t7",
+      "subject": "Tổng hợp bằng chứng + khuyến nghị filter context / stop buffer / subset level_type",
+      "description": "Tổng hợp toàn bộ bằng chứng từ chuỗi phân tích (t4: level_type quality × trend-context × stop-buffer-regime; t5: model PR-AUC/PF per level_type) thành 1 tài liệu khuyến nghị tiếng Việt cho user: (1) trả lời có số liệu + CI cho 3 giả thuyết từ chart review; (2) khuyến nghị hành động cụ thể theo mức độ ủng hộ của bằng chứng — filter context vào rule score hoặc detector khi sweep cùng chiều trend H1 mạnh (catch-the-knife), điều chỉnh stop buffer theo volatility regime nếu MAE_R regime thấp sát ngưỡng, hoặc chạy model/subset chỉ giữ swing+equal+prev_day nếu PR-AUC cải thiện; (3) nêu cách test đề xuất (A/B backtest, out-of-sample) trước khi quyết định đổi baseline v1.2.0; (4) ghi giới hạn n nhỏ/multiple-testing. KHÔNG sửa code/baseline — chỉ doc khuyến nghị ở reports/analysis/. Workdir xauusd-liquidity-sweep/.",
+      "status": "completed",
+      "assignee": "Lead_Integrator",
+      "dependencies": [
+        "t6"
+      ],
+      "attempt": 1,
+      "createdAt": 1788509157896,
+      "updatedAt": 1788513826414,
+      "kind": "integration",
+      "objective": "Tạo tài liệu khuyến nghị dựa trên bằng chứng định lượng: có nên thêm filter context / đổi stop buffer theo regime / giới hạn level_type chất lượng cao trước khi coi là cải thiện edge — kèm cách test A/B out-of-sample.",
+      "inScope": [
+        "xauusd-liquidity-sweep/reports/analysis/"
+      ],
+      "outOfScope": [
+        "xauusd-liquidity-sweep/src/",
+        "xauusd-liquidity-sweep/artifacts/",
+        "xauusd-liquidity-sweep/data/",
+        "xauusd-liquidity-sweep/configs/",
+        "xauusd-liquidity-sweep/reports/freeze_status_v1.2.0.md"
+      ],
+      "acceptance": [
+        "Tổng hợp đầy đủ kết quả t4 (level_type quality, trend-context, stop buffer regime) + t5 (model per level_type) vào 1 doc khuyến nghị tiếng Việt",
+        "Kết luận rõ cho 3 giả thuyết: (a) swing/equal/prev_day có tốt hơn rolling không — kèm số + CI; (b) trend-context catch-the-knife có được xác nhận không — nhóm cùng chiều trend H1 mạnh PF/win thấp hơn ngược trend?; (c) stop buffer 0.10 ATR có quá sát ở regime thấp không — MAE_R phân vị",
+        "Đề xuất cụ thể (chỉ là khuyến nghị, KHÔNG sửa code): nếu bằng chứng ủng hộ → filter context vào rule score/detector (giảm điểm sweep cùng chiều trend mạnh), stop buffer theo regime, hoặc chạy model chỉ trên subset swing/equal/prev_day — nêu rõ tác động kỳ vọng + cách test (backtest A/B)",
+        "Chỉ ra giới hạn: n nhỏ, multiple-testing, cần out-of-sample xác nhận trước khi đổi baseline",
+        "Doc: reports/analysis/recommendation_context_filter.md (thư mục analysis — KHÔNG đụng frozen)"
+      ],
+      "deliverables": [
+        "reports/analysis/recommendation_context_filter.md"
+      ],
+      "attemptId": "50f6da16-c580-47ca-8425-8978eb3147e5",
+      "reassigning": false,
+      "output": "Tạo xong reports/analysis/recommendation_context_filter.md — tài liệu khuyến nghị tiếng Việt tổng hợp t4+t5 (191 dòng), chỉ thêm 1 file trong reports/analysis/, không đụng code/baseline/frozen. Nội dung: (1) trả lời 3 giả thuyết kèm số + Wilson CI: (a) level_type — KHÔNG hỗ trợ bỏ rolling (rolling n=0 trong frozen 974, pooled==whole n=974, PR-AUC pooled 0.2546 == whole 0.2546; review-pool rolling 0.507 [0.393,0.620] PF 1.788 không tệ; prev_day n=14 PF 0.278 không kết luận); (b) catch-the-knife — đúng hướng mức yếu–vừa (knife n=698 win 0.1648 [0.1391,0.1941] PF 0.98 vs ngược trend n=275 win 0.2255 [0.1800,0.2784] PF 1.15; p≈0.03 chưa hiệu chỉnh; P(net>0) không khác p≈0.90; 'H1 mạnh' chưa đo được — chỉ binary sign); (c) stop buffer 0.10 ATR — tương hợp mạnh trên loser (low stop share 0.878 [0.830,0.914] vs high 0.629 [0.550,0.702], MAE_R median 1.87 vs 1.29, Mann-Whitney p=5.3e-9; buffer % risk ~5% mọi regime) nhưng phải A/B toàn pool. (2) Khuyến nghị theo mức ủng hộ: R1 stop-buffer theo regime (A/B re-label), R2 penalty trend-context vào rule-score (không hard-filter), R3 giữ nguyên model pool, R4 optional trend-strength feature. (3) Cách test: OOS mới / walk-forward / pre-register, tiêu chí expectancy>0.05R + CI không chứa baseline + n≥30 + cost thực 0.05R, re-freeze chỉ sau khi thắng OOS. (4) Giới hạn: n nhỏ, multiple-testing, in-sample description, cost=0 placeholder, rolling semantics.",
+      "changedPaths": [
+        "reports/analysis/recommendation_context_filter.md"
+      ],
+      "acceptanceResults": [
+        {
+          "criterion": "Tổng hợp đầy đủ kết quả t4 (level_type quality, trend-context, stop buffer regime) + t5 (model per level_type) vào 1 doc khuyến nghị tiếng Việt",
+          "status": "passed",
+          "evidence": "Đã tạo reports/analysis/recommendation_context_filter.md (191 dòng, tiếng Việt) tổng hợp: §1 level_type quality frozen 974 + review-round-2 pool (rolling n=71 vs structural) + model per-level_type OOS (PR-AUC/ROC); §2 trend-context 2×2 + nhóm cung/ngược chiều; §3 stop-buffer regime (MAE_R phân vị median/p75/p90, stop share, buffer % risk); §4 khuyến nghị; §5 giới hạn. Toàn bộ số lấy từ 8 file reports/analysis/*.{json,md} do QA xác nhận deterministic (md5 ổn định)"
+        },
+        {
+          "criterion": "Kết luận rõ cho 3 giả thuyết: (a) swing/equal/prev_day có tốt hơn rolling không — kèm số + CI; (b) trend-context catch-the-knife có được xác nhận không — nhóm cùng chiều trend H1 mạnh PF/win thấp hơn ngược trend?; (c) stop buffer 0.10 ATR có quá sát ở regime thấp không — MAE_R phân vị",
+          "status": "passed",
+          "evidence": "(a) KHÔNG hỗ trợ: rolling n=0 trong frozen 974, nhóm gộp == toàn pool n=974 (pooled PR-AUC 0.2546 == whole CV 0.2546); bảng số+CI (swing win 0.1818 [0.1497,0.2191] P(net>0) 0.4334 [0.3895,0.4784]; equal 0.1852 [0.1532,0.2221] / 0.4177 [0.3747,0.4620]; prev_day n=14 0.0714 [0.0127,0.3147] / 0.2143 [0.0757,0.4759]); review-pool rolling 0.5070 [0.3934,0.6199] PF 1.788 — không phải nhóm tệ. (b) Đúng hướng, mức yếu–vừa: knife n=698 win 0.1648 [0.1391,0.1941] PF 0.9804 vs ngược trend n=275 win 0.2255 [0.1800,0.2784] PF 1.1488; chi-square p≈0.027 (Yates 0.034) nhưng P(net>0) 0.4212 vs 0.4255 p≈0.90 → khác ở đuôi 2R, chưa đủ hard-filter. (c) Tương hợp mạnh trên loser: low n=230 MAE_R median 1.874/p75 2.823/p90 4.320, stop share 0.878 [0.830,0.914] vs high 0.629 [0.550,0.702], P(MAE>1R) 0.878 vs 0.629 (p<1e-5), Mann-Whitney p=5.3e-9; buffer % risk ~5% mọi regime (5.0/5.5/5.7%)"
+        },
+        {
+          "criterion": "Đề xuất cụ thể (chỉ là khuyến nghị, KHÔNG sửa code): nếu bằng chứng ủng hộ → filter context vào rule score/detector (giảm điểm sweep cùng chiều trend mạnh), stop buffer theo regime, hoặc chạy model chỉ trên subset swing/equal/prev_day — nêu rõ tác động kỳ vọng + cách test (backtest A/B)",
+          "status": "passed",
+          "evidence": "§4 bảng khuyến nghị 4 dòng kèm mức ủng hộ/tác động kỳ vọng/rủi ro: R1 stop buffer theo regime (low 0.15–0.20/normal 0.10/high 0.08 ATR, A/B re-label toàn pool); R2 penalty trend-context vào rule_score (catch-the-knife −5/−10 điểm, detector giữ nguyên, tránh mất 72% volume); R3 giữ nguyên model pool level_type (không hỗ trợ đổi; theo dõi prev_day khi n>30); R4 optional feature cường độ trend ngoài baseline. §4.1 cách test: không dùng cùng 974 để khám phá+xác nhận; OOS period mới / walk-forward / pre-register ngưỡng; tiêu chí expectancy >0.05R + CI không chứa baseline + PF>1.15 + n≥30 + cost thực ~0.05R; re-freeze chỉ sau khi thắng OOS"
+        },
+        {
+          "criterion": "Chỉ ra giới hạn: n nhỏ, multiple-testing, cần out-of-sample xác nhận trước khi đổi baseline",
+          "status": "passed",
+          "evidence": "§5 giới hạn đầy đủ: n nhỏ (prev_day 14; subset th0.4 13–32; review pool 24–71 — CI rộng); multiple-testing (nhiều lát cắt t4/t5, p chưa hiệu chỉnh); in-sample description (nhóm định nghĩa trên chính pool) → bắt buộc OOS xác nhận; 'H1 mạnh' chưa đo được (chỉ binary sign EMA50, không có magnitude column); cost=0 placeholder → net_result_r ≈ gross; rolling n=0 semantics. Doc ghi rõ không thay đổi baseline v1.2.0"
+        },
+        {
+          "criterion": "Doc: reports/analysis/recommendation_context_filter.md (thư mục analysis — KHÔNG đụng frozen)",
+          "status": "passed",
+          "evidence": "File duy nhất tạo mới: reports/analysis/recommendation_context_filter.md; ls xác nhận chỉ thêm 1 file trong reports/analysis/, không sửa src/artifacts/data/configs/freeze_status_v1.2.0.md; 13 artifact md5-freeze giữ nguyên"
+        }
+      ],
+      "commandsRun": []
+    },
+    {
+      "id": "t8",
+      "subject": "Cost run: áp cost thực ~0.05R vào toàn pool 974 (gate quyết định R1/R2) — không re-train",
+      "description": "Tạo script mới (vd scripts/apply_cost_analysis.py) trong project xauusd-liquidity-sweep (cwd làm việc: xauusd-liquidity-sweep/). Logic:\n(1) Đọc frozen events + net_result_r THẬT (gross, cost=0 hiện tại). Post-cost net per position = net_result_r − 0.05R (hoặc − cost_R tùy theo báo cáo spread trước đó nếu có con số tốt hơn — ghi rõ giả định).\n(2) Tái tính PF / expectancy / win-rate / P(net>0) cho: whole pool (n=974/973), rule bucket 40-49, top-prob ≥0.25 subset (dùng ĐÚNG phương pháp frozen top_prob_subset_analysis, không re-train), và các nhóm trend-context + level_type. Kèm n, Wilson 95% CI cho PF/expectancy.\n(3) PARITY ANCHOR BẮT BUỘC: tái lập trước-cost trong cùng script phải khớp số đã freeze (whole PF 1.0279, top-prob PF 1.1653/1.3045/1.2784 @0.2/0.25/0.4, rule 40-49 PF 1.23) → chứng minh cùng phương pháp; sau đó mới áp cost.\n(4) Deterministic: chạy 2 lần stdout diff rỗng + output md5 ổn định. KHÔNG sửa bất kỳ file frozen/baseline nào; chỉ ghi file mới trong reports/analysis/.\n(5) Kết luận rõ theo câu hỏi gate: bucket nào còn PF>1 sau cost (point estimate + CI), bucket nào rớt xuống <1; baseline expectancy sau cost (R/lệnh) còn dương hay âm.\nDeliverables: scripts/apply_cost_analysis.py + reports/analysis/cost_0_05r_analysis.{json,md}. Báo cáo kết quả chi tiết + câu trả lời gate.",
+      "status": "completed",
+      "assignee": "ML_Engineer",
+      "dependencies": [],
+      "attempt": 2,
+      "createdAt": 1788515121300,
+      "updatedAt": 1788515655550,
+      "kind": "implementation",
+      "objective": "Định lượng baseline SAU CHI PHÍ: áp cost ước lượng 0.05R (round-trip spread+slippage+commission) lên từng vị thế của toàn bộ 974 events frozen (không re-train, không đụng model/detector/baseline v1.2.0), trả lời câu hỏi quyết định: các bucket/subset hiện có PF>1 trước cost (rule bucket 40-49: PF 1.23; top-prob ≥0.25: PF 1.30; whole pool: PF 1.0279) còn giữ PF>1 sau cost thực không, và baseline expectancy toàn pool còn dương không.",
+      "inScope": [
+        "xauusd-liquidity-sweep/scripts/",
+        "xauusd-liquidity-sweep/reports/analysis/"
+      ],
+      "outOfScope": [
+        "xauusd-liquidity-sweep/src/",
+        "xauusd-liquidity-sweep/artifacts/",
+        "xauusd-liquidity-sweep/reports/metrics/",
+        "xauusd-liquidity-sweep/reports/freeze_status_v1.2.0.md"
+      ],
+      "acceptance": [
+        "Script chạy rc=0, deterministic (2 lần stdout diff rỗng, output md5 ổn định)",
+        "Parity: số trước-cost tái lập khớp frozen (whole PF 1.0279; top-prob PF 1.1653/1.3045/1.2784 @0.2/0.25/0.4; rule 40-49 PF 1.23)",
+        "Bảng post-cost PF/expectancy + Wilson CI cho whole + rule 40-49 + top-prob ≥0.25 + nhóm trend/level_type, kèm n",
+        "Kết luận gate rõ: bucket nào còn PF>1 sau cost, baseline expectancy sau cost dương/âm",
+        "md5 13/13 frozen giữ nguyên so t1_rerun_md5_snapshot.json (0 mismatch) — không đụng baseline"
+      ],
+      "verify": [
+        "chạy script 2 lần, diff stdout rỗng + so md5 output",
+        "so md5 13 frozen artifact vs reports/integration/t1_rerun_md5_snapshot.json"
+      ],
+      "attemptId": "3d23ffcd-738f-47e9-9ef7-bc1c6c810873",
+      "reassigning": false,
+      "output": "t8 hoàn tất rc=0, deterministic (2 runs stdout diff rỗng, output md5 ổn định), parity 9/9 khớp frozen, md5 frozen 13/13 giữ nguyên. Kết quả gate (cost 0.05R/lệnh flat; nguồn giả định freeze_status #4, cost thật đo deferred T16): WHOLE POOL PF 1.0279→0.9322 (<1), expectancy +0.014R→−0.036R ÂM, breakeven chỉ 0.014R → baseline chết sau cost thực, xác nhận freeze_status v1.2.0. RULE 40-49: PF 1.23→1.0986 (>1 point, CI [0.775,1.527] chứa 1), expectancy +0.0419R dương, breakeven 0.0919R. TOP-PROB ≥0.25: PF 1.3045→1.1999 (>1 point, CI chứa 1), +0.1119R dương, breakeven 0.1619R. Nhóm trend: chỉ sweep_nguoc_trend (n 275, PF 1.1488→1.0463) còn PF>1 point; sweep_cung_chieu_trend_h1 (n 698) rớt 0.9804→0.8875. Kết luận: không trade ML nguyên trạng; rule 40-49/top-prob ≥0.25 chỉ dùng làm bộ lọc ranking (edge gợi ý, CI chưa loại 1). Deliverables: xauusd-liquidity-sweep/scripts/apply_cost_analysis.py + reports/analysis/cost_0_05r_analysis.{json,md}.",
+      "changedPaths": [
+        "xauusd-liquidity-sweep/scripts/apply_cost_analysis.py",
+        "xauusd-liquidity-sweep/reports/analysis/cost_0_05r_analysis.json",
+        "xauusd-liquidity-sweep/reports/analysis/cost_0_05r_analysis.md"
+      ],
+      "acceptanceResults": [
+        {
+          "criterion": "Script chạy rc=0, deterministic (2 lần stdout diff rỗng, output md5 ổn định)",
+          "status": "passed",
+          "evidence": "2 consecutive runs of scripts/apply_cost_analysis.py both rc=0; diff run1.txt vs run2.txt empty (printed STDOUT-DIFF-EMPTY); output md5 stable across runs: cost_0_05r_analysis.json a7459f0336db461655e072facb7e1f11, .md 4805eaa65579d2d1765caca347f01c90"
+        },
+        {
+          "criterion": "Parity: số trước-cost tái lập khớp frozen (whole PF 1.0279; top-prob PF 1.1653/1.3045/1.2784 @0.2/0.25/0.4; rule 40-49 PF 1.23)",
+          "status": "passed",
+          "evidence": "9/9 parity checks PASS in-script: whole PF 1.027866 avg +0.013994R P(net>0) 0.422405 n_net 973; top-prob OOS PF 1.1653/1.3045/1.2784 @0.2/0.25/0.4 (n_net 360/223/32) khớp reports/top_prob_subset_analysis.json; rule 40-49 n=188 PF 1.23 avg_net_r 0.0919 khớp score_bucket_report.json. Parity fail ⇒ exit 2 ⇒ rc=0 proves parity PASS"
+        },
+        {
+          "criterion": "Bảng post-cost PF/expectancy + Wilson CI cho whole + rule 40-49 + top-prob ≥0.25 + nhóm trend/level_type, kèm n",
+          "status": "passed",
+          "evidence": "reports/analysis/cost_0_05r_analysis.md đủ bảng kèm n_net + PF/expectancy bootstrap 95% CI + P(net>0) Wilson CI + breakeven cost: whole 973 PF 1.0279→0.9322 CI[0.8045,1.0762] avg 0.014→-0.036 CI[-0.1101,0.0382]; rule 40-49 n188→PF 1.0986 CI[0.775,1.5274]; top-prob ≥0.25 n223→PF 1.1999 CI[0.9105,1.575]; level_type equal/swing/prev_day n 486/473/14; dir×h1_trend n 341/148/127/357; composites cung_chieu 698 / nguoc 275; cross 6 rows; sensitivity PF @0.00/0.03/0.05/0.07/0.10R"
+        },
+        {
+          "criterion": "Kết luận gate rõ: bucket nào còn PF>1 sau cost, baseline expectancy sau cost dương/âm",
+          "status": "passed",
+          "evidence": "WHOLE POOL RỚT PF 1.0279→0.9322 (<1, CI chứa 1), expectancy +0.014R→−0.036R ÂM, breakeven 0.014R; RULE 40-49 GIỮ PF>1 point 1.0986 (CI chứa 1), +0.0419R dương, breakeven 0.0919R; TOP-PROB ≥0.25 GIỮ PF>1 point 1.1999 (CI chứa 1), +0.1119R dương, breakeven 0.1619R; nhóm trend chỉ sweep_nguoc_trend n275 PF 1.1488→1.0463 còn PF>1 point; kết luận md: baseline hết edge sau 0.05R, subset giữ PF>1 point nhưng CI chưa loại 1 → chỉ dùng làm bộ lọc ranking, không trade ML nguyên trạng"
+        },
+        {
+          "criterion": "md5 13/13 frozen giữ nguyên so t1_rerun_md5_snapshot.json (0 mismatch) — không đụng baseline",
+          "status": "passed",
+          "evidence": "In-script guard 'FROZEN MD5 GUARD: 13/13 match snapshot' + independent bash md5 loop 13/13 PASS 'RESULT: 13/13 match, 0 mismatch' (model.pkl 69d65883, calibrator ca1d7e61, walk_forward/top_prob/score_bucket reports, labeled_events+datasets fac22cea); script chỉ ghi file mới reports/analysis/*"
+        }
+      ],
+      "commandsRun": [
+        {
+          "command": "chạy script 2 lần, diff stdout rỗng + so md5 output",
+          "status": "passed",
+          "exitCode": 0,
+          "evidence": ".venv/bin/python scripts/apply_cost_analysis.py chạy 2 lần đều rc=0; diff /tmp/t8_run1.txt /tmp/t8_run2.txt rỗng (STDOUT-DIFF-EMPTY); md5sum outputs giống nhau cả 2 lần: json a7459f0336db461655e072facb7e1f11, md 4805eaa65579d2d1765caca347f01c90"
+        },
+        {
+          "command": "so md5 13 frozen artifact vs reports/integration/t1_rerun_md5_snapshot.json",
+          "status": "passed",
+          "exitCode": 0,
+          "evidence": "in-script guard: 'FROZEN MD5 GUARD: 13/13 match snapshot'; độc lập python md5 loop in từng file 13/13 PASS và 'RESULT: 13/13 match, 0 mismatch'"
+        }
+      ]
+    },
+    {
+      "id": "t9",
+      "subject": "Breakdown exit_reason × trend-context (nhóm dao vs ngược trend) — làm rõ nuance (b)",
+      "description": "Tạo script mới (vd scripts/analyze_exit_reason_trend.py) trong project xauusd-liquidity-sweep (cwd: xauusd-liquidity-sweep/). Logic:\n(1) Đọc frozen events 974, cột trend-context (như analyze_level_quality.py đã dùng: cung_chieu vs nguoc — tái lập đúng định nghĩa) + cột exit_reason thật (tp/sl/time — xem cấu trúc events để dùng đúng tên cột; tham khảo reports/score_bucket_exit_reason.*).\n(2) Bảng chéo exit_reason × nhóm (dao cung_chieu / ngược trend): n, tỷ lệ từng exit_reason + Wilson 95% CI.\n(3) RIÊNG cho nhóm không đạt full 2R: tách win nhỏ (time-exit dương) vs loss (sl) — kiểm định tỷ lệ time-exit giữa 2 nhóm (vd Fisher/chi2 hoặc MWU trên net của time-exits) để xác nhận/loại bỏ giả thuyết 'dao thắng nhỏ qua time nhiều hơn'.\n(4) Reconcile n: t4 báo cung_chieu n=699, t7 báo knife n=698 — xác định chính xác n mỗi nhóm + lý do lệch 1 (NaN handling?) và ghi rõ.\n(5) Deterministic rc=0 ×2 diff rỗng; KHÔNG sửa file frozen; chỉ ghi file mới trong reports/analysis/.\nDeliverables: scripts/analyze_exit_reason_trend.py + reports/analysis/exit_reason_trend_context.{json,md}. Kết luận: nhóm dao có tỷ lệ 'time' cao hơn thật (win nhỏ) hay thực ra 'sl' cao hơn (thua nhiều)?",
+      "status": "pending",
+      "dependencies": [
+        "t8"
+      ],
+      "attempt": 1,
+      "createdAt": 1788515137277,
+      "updatedAt": 1788516529810,
+      "kind": "implementation",
+      "objective": "Làm rõ cơ chế của phát hiện trend-context: nhóm catch-the-knife (cùng chiều, cung_chieu) có win-rate hit-2R thấp hơn (16.5% vs 22.6%) nhưng P(net>0) gần bằng (0.421 vs 0.426) — giả thuyết: nhóm dao thắng NHỎ qua time-barrier/mark-to-market nhiều hơn (exit_reason=time) chứ KHÔNG phải thua nhiều hơn (sl). Kiểm chứng bằng phân phối exit_reason (tp/sl/time/khác) tách theo 2 nhóm trend-context trên frozen events.",
+      "inScope": [
+        "xauusd-liquidity-sweep/scripts/",
+        "xauusd-liquidity-sweep/reports/analysis/"
+      ],
+      "outOfScope": [
+        "xauusd-liquidity-sweep/src/",
+        "xauusd-liquidity-sweep/artifacts/",
+        "xauusd-liquidity-sweep/reports/metrics/"
+      ],
+      "acceptance": [
+        "Script chạy rc=0, deterministic (2 lần stdout diff rỗng, output md5 ổn định)",
+        "Bảng chéo exit_reason × nhóm kèm n + Wilson CI; số n nhóm khớp t4/t7 (699/698) đã được reconcile và giải thích",
+        "Kiểm định tỷ lệ time-exit giữa 2 nhóm được thực hiện và kết luận rõ: dao thắng nhỏ qua time (ủng hộ) hay sl cao hơn (bác bỏ)",
+        "Không đụng file frozen/baseline (md5 13/13 giữ nguyên)"
+      ],
+      "verify": [
+        "chạy script 2 lần, diff stdout rỗng + so md5 output",
+        "so md5 13 frozen artifact vs reports/integration/t1_rerun_md5_snapshot.json"
+      ],
+      "reassigning": false,
+      "handoffId": "ba479a5b-8ea1-4c64-9c5b-2b4d2b071956"
+    },
+    {
+      "id": "t10",
+      "subject": "QA review: cost run 0.05R (t8) — xác minh gate R1/R2",
+      "description": "QA review độc lập task t8 (Cost run 0.05R gate). Tự chạy lại scripts/apply_cost_analysis.py bằng lệnh thật (cwd xauusd-liquidity-sweep/), KHÔNG tin lời báo cáo. Kiểm tra: methodology cost (0.05R/round-trip per position, không re-train), parity pre-cost trùng frozen, tính đúng đắn của PF/expectancy post-cost + Wilson CI, và đặc biệt đánh giá câu trả lời GATE — đây là input quyết định việc có chạy R1/R2 hay dừng pipeline, nên yêu cầu chuẩn xác: với từng bucket đang PF>1 trước cost, sau cost point estimate + CI có giữ >1 không; expectancy toàn pool sau cost (R/lệnh). Ghi chú giới hạn (cost là ước lượng, giả định spread). Verdict pass/needs_revision + findings cấp severity + requiredFix.",
+      "status": "pending",
+      "dependencies": [
+        "t8"
+      ],
+      "attempt": 1,
+      "createdAt": 1788515153086,
+      "updatedAt": 1788516529810,
+      "kind": "review",
+      "round": 1,
+      "objective": "Xác minh độc lập kết quả cost-run t8 (bằng chứng quyết định gate R1/R2): tái lập script thật, verify parity pre-cost + methodology cost 0.05R, và đánh giá đúng đắn câu trả lời 'bucket nào còn PF>1 sau cost / expectancy dương hay âm'.",
+      "acceptance": [
+        "QA tự chạy lại script cost bằng lệnh thật ≥2 lần, xác nhận rc=0 + deterministic (không dựa lời báo cáo ML_Engineer)",
+        "Verify parity anchor: số trước-cost tái lập khớp frozen (whole PF 1.0279; top-prob PF 1.1653/1.3045/1.2784; rule 40-49 PF 1.23)",
+        "Verify công thức cost: post-cost net = net_result_r − 0.05R áp đúng từng vị thế, giả định cost ghi rõ, không double-count",
+        "Kiểm tra bảng post-cost PF/expectancy + Wilson CI đủ các bucket (whole, rule 40-49, top-prob ≥0.25, nhóm trend/level_type) kèm n",
+        "md5 13/13 frozen giữ nguyên sau khi QA chạy lại"
+      ],
+      "reviewedTaskId": "t8",
+      "reassigning": false,
+      "handoffId": "ce196905-08f0-4b4b-bb0f-c8ae43be95bb"
+    },
+    {
+      "id": "t11",
+      "subject": "QA review: breakdown exit_reason × trend-context (t9)",
+      "description": "QA review độc lập task t9 (breakdown exit_reason × trend-context). Tự chạy lại scripts/analyze_exit_reason_trend.py bằng lệnh thật (cwd xauusd-liquidity-sweep/), KHÔNG tin lời báo cáo. Kiểm tra: cột exit_reason dùng đúng định nghĩa (đối chiếu cấu trúc events + reports/score_bucket_exit_reason.*), bảng chéo + Wilson CI, reconcile n 699/698, và kiểm định thống kê (loại test, giả định, cỡ mẫu từng cell — cell nhỏ có thể làm test không đáng tin). Đây là input cho quyết định target/horizon của nhóm dao sau này. Verdict pass/needs_revision + findings severity + requiredFix.",
+      "status": "pending",
+      "dependencies": [
+        "t9"
+      ],
+      "attempt": 0,
+      "createdAt": 1788515153111,
+      "updatedAt": 1788516529810,
+      "kind": "review",
+      "round": 1,
+      "objective": "Xác minh độc lập breakdown exit_reason × trend-context (t9): tái lập script thật, verify định nghĩa exit_reason + bảng chéo + kiểm định, đánh giá giả thuyết 'nhóm dao thắng nhỏ qua time-exit'.",
+      "acceptance": [
+        "QA tự chạy lại script exit_reason bằng lệnh thật ≥2 lần, rc=0 + deterministic",
+        "Verify cột exit_reason dùng đúng (tp/sl/time) so cấu trúc events thật; bảng chéo đúng n nhóm (699/698 đã reconcile)",
+        "Đánh giá kiểm định tỷ lệ time-exit giữa 2 nhóm có hợp lệ (test đúng loại, cỡ mẫu, không p-hack)",
+        "md5 13/13 frozen giữ nguyên sau khi QA chạy lại"
+      ],
+      "reviewedTaskId": "t9",
+      "handoffId": "5d89ac9b-ec7f-41ce-92b5-97721f1f927d",
+      "reassigning": false
+    }
+  ],
+  "taskSeq": 11,
+  "phase": "running",
+  "approvedAt": 1788505322771
+}

@@ -1,0 +1,40 @@
+{
+  "name": "xauusd-setup-redefinition",
+  "id": "xauusd-setup-redefinition",
+  "description": "Tái định nghĩa setup XAUUSD M15 Liquidity Sweep: (1) Exit_reason breakdown để hiểu edge chết ở đâu; (2) Cost sensitivity 0.01R–0.10R tìm breakeven; (3) Parameter sensitivity (pen/wick/min_reclaim/time-barrier) × PF; (4) Tổng hợp concrete recommendations. Gate t8 đã chứng minh: baseline expectancy −0.036R sau cost 0.05R, PF 0.9322 <1. R1/R2 từ team v2 không còn phù hợp — cần hiểu gốc rễ trước khi quyết định đi tiếp hay dừng.",
+  "captainSessionId": "session-f9e73dbd-7459-4fe6-859f-420afe593c6b",
+  "createdAt": 1788516558618,
+  "members": [
+    {
+      "id": "",
+      "name": "ML_Engineer",
+      "role": "Quantitative Analyst",
+      "provider": "zen-opencode",
+      "model": "mimo-v2.5-free",
+      "joinedAt": 1788516579733,
+      "status": "idle"
+    },
+    {
+      "id": "",
+      "name": "Lead_Integrator",
+      "role": "Synthesis & Recommendations",
+      "provider": "zen-opencode",
+      "model": "mimo-v2.5-free",
+      "joinedAt": 1788516579752,
+      "status": "idle"
+    },
+    {
+      "id": "",
+      "name": "QA_Auditor",
+      "role": "QA / Bias Auditor",
+      "provider": "zen-opencode",
+      "model": "mimo-v2.5-free",
+      "joinedAt": 1788516579768,
+      "status": "idle"
+    }
+  ],
+  "tasks": [],
+  "taskSeq": 0,
+  "phase": "staged",
+  "planReviewState": "awaiting_review"
+}
