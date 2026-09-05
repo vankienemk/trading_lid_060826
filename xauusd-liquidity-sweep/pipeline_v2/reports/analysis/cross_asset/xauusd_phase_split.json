@@ -1,0 +1,141 @@
+{
+  "analysis": "XAUUSD time-split: OOS vs discovery period",
+  "split_date": "2022-06-01",
+  "periods": {
+    "2018_to_202206_OOS": {
+      "label": "2018_to_202206",
+      "n_bars": 103884,
+      "date_range": "2018-01-02 06:00:00+00:00 \u2192 2022-05-31 23:45:00+00:00",
+      "n_events_raw": 465,
+      "n_confirmed": 120,
+      "n_valid": 120,
+      "n_net": 118,
+      "events_per_1k_bars": 4.4761,
+      "direction_split": {
+        "long": 56,
+        "short": 62
+      },
+      "outcome_breakdown": {
+        "tp": 23,
+        "sl": 52,
+        "time_out": 43
+      },
+      "base_2R_h16": {
+        "PF_pre_cost": 1.165,
+        "PF_post_0.05R": 1.056,
+        "PF_CI95_pre": [
+          0.7719,
+          1.7545
+        ],
+        "PF_CI95_post": [
+          0.7045,
+          1.5709
+        ],
+        "breakeven_cost": 0.0779,
+        "avg_net_r": 0.0779,
+        "net_positive_rate": 0.4661
+      },
+      "RR3_h16": {
+        "PF_pre_cost": 1.5778,
+        "PF_post_0.05R": 1.4466,
+        "PF_CI95_pre": [
+          0.9935,
+          2.3696
+        ],
+        "PF_CI95_post": [
+          0.9355,
+          2.1886
+        ],
+        "breakeven_cost": 0.2728,
+        "avg_net_r": 0.2728,
+        "net_positive_rate": 0.4661
+      }
+    },
+    "202206_to_2026_discovery": {
+      "label": "202206_to_2026",
+      "n_bars": 100249,
+      "date_range": "2022-06-01 00:00:00+00:00 \u2192 2026-09-03 19:45:00+00:00",
+      "n_events_raw": 465,
+      "n_confirmed": 122,
+      "n_valid": 122,
+      "n_net": 122,
+      "events_per_1k_bars": 4.6385,
+      "direction_split": {
+        "long": 66,
+        "short": 56
+      },
+      "outcome_breakdown": {
+        "tp": 32,
+        "sl": 46,
+        "time_out": 44
+      },
+      "base_2R_h16": {
+        "PF_pre_cost": 1.5386,
+        "PF_post_0.05R": 1.3968,
+        "PF_CI95_pre": [
+          1.0423,
+          2.2969
+        ],
+        "PF_CI95_post": [
+          0.9428,
+          1.9955
+        ],
+        "breakeven_cost": 0.2294,
+        "avg_net_r": 0.2294,
+        "net_positive_rate": 0.4836
+      },
+      "RR3_h16": {
+        "PF_pre_cost": 2.1543,
+        "PF_post_0.05R": 1.9769,
+        "PF_CI95_pre": [
+          1.3909,
+          3.2348
+        ],
+        "PF_CI95_post": [
+          1.3278,
+          2.9662
+        ],
+        "breakeven_cost": 0.4917,
+        "avg_net_r": 0.4917,
+        "net_positive_rate": 0.4836
+      }
+    },
+    "full_2018_to_2026": {
+      "label": "Full 2018\u21922026",
+      "n_bars": 204133,
+      "source": "/Users/a/Documents/deepseek harness/kien-workspace/xauusd-liquidity-sweep/pipeline_v2/reports/analysis/cross_asset/xauusd_full_analysis.json"
+    }
+  },
+  "full_run_comparison": {
+    "n_net": 240,
+    "pre_cost": {
+      "n_net": 240,
+      "profit_factor": 1.856,
+      "pf_ci95": [
+        1.3683,
+        2.4664
+      ],
+      "avg_net_r": 0.3841,
+      "net_positive_rate": 0.475,
+      "net_positive_rate_wilson_ci95": [
+        0.4127,
+        0.5381
+      ]
+    },
+    "post_cost_0.05R": {
+      "n_net": 240,
+      "profit_factor": 1.7031,
+      "pf_ci95": [
+        1.2508,
+        2.2604
+      ],
+      "avg_net_r": 0.3341,
+      "net_positive_rate": 0.4708,
+      "net_positive_rate_wilson_ci95": [
+        0.4086,
+        0.5339
+      ]
+    },
+    "breakeven_cost": 0.3841
+  }
+}

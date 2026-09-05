@@ -1,0 +1,1 @@
+# V2 pipeline: sweep detector with nguoc_trend + max_pen filter

@@ -1,30 +1,28 @@
 # Score Bucket Performance Report
 
-**Generated**: 2026-09-04 23:38
+**Generated**: 2026-09-04 22:30
 **Dataset**: `data/processed/labeled_events.parquet`
-**Total events**: 974
+**Total events**: 121
 **Config**: `configs/baseline.yaml` (scoring.weights + score_buckets)
 
 ## Bucket Table
 
 | Bucket | Events | Win Rate | Loss Rate | Ambiguous | Avg MFE (R) | Avg MAE (R) | Avg Net (R) | Profit Factor |
 |---|---|---|---|---|---|---|---|---|
-| 0-39 | 783 | 18.90% | 48.66% | 0.13% | 1.4708 | 1.5142 | -0.0045 | 0.9914 |
-| 40-49 | 188 | 15.43% | 35.11% | 0.00% | 1.2315 | 1.0364 | 0.0919 | 1.2300 |
-| 50-59 | 3 | 0.00% | 33.33% | 0.00% | 1.2582 | 0.6488 | -0.0419 | 0.8744 |
+| 0-39 | 94 | 29.79% | 40.43% | 0.00% | 1.9310 | 1.2789 | 0.2600 | 1.5750 |
+| 40-49 | 27 | 14.81% | 25.93% | 0.00% | 1.3223 | 0.8895 | 0.1685 | 1.5375 |
 
 ## Score Distribution
 
-- Mean rule_score: 33.45
-- Std rule_score: 6.82
-- Min: 15.00, Max: 50.00
+- Mean rule_score: 34.56
+- Std rule_score: 6.63
+- Min: 17.00, Max: 47.00
 
 ## Outcome Distribution
 
-- **sl**: 448 (46.0%)
-- **time**: 348 (35.7%)
-- **tp**: 177 (18.2%)
-- **ambiguous**: 1 (0.1%)
+- **sl**: 45 (37.2%)
+- **time**: 44 (36.4%)
+- **tp**: 32 (26.4%)
 
 ## Figure
 

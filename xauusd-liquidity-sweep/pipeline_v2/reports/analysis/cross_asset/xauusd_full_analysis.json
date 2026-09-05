@@ -1,0 +1,97 @@
+{
+  "symbol": "XAUUSD",
+  "metadata": {
+    "bars": 204133,
+    "date_range": "2018-01-02 06:00:00+00:00 \u2192 2026-09-03 19:45:00+00:00",
+    "v2_nguoc_trend": true,
+    "v2_max_penetration_atr": 0.2,
+    "v2_target_r": 3.0,
+    "cost_base_r": 0.05,
+    "entry_mode": "next_open_after_confirmation",
+    "group_rule": "first"
+  },
+  "filter_stack": {
+    "h1_trend_bars_available": 204127,
+    "baseline_sweep_bars": 4004,
+    "v2_nguoc_trend_bars": 1003,
+    "confirmed_events": 242,
+    "labeled_valid": 242,
+    "net_valid": 240,
+    "direction_split": {
+      "long": 122,
+      "short": 118
+    }
+  },
+  "outcome_breakdown_2R_h16": {
+    "tp": 55,
+    "sl": 98,
+    "time_out": 87,
+    "ambiguous": 0
+  },
+  "performance_base_2R_h16": {
+    "n_confirmed": 242,
+    "n_valid": 242,
+    "n_net_valid": 240,
+    "pre_cost": {
+      "n_net": 240,
+      "profit_factor": 1.3453,
+      "pf_ci95": [
+        1.0241,
+        1.7473
+      ],
+      "avg_net_r": 0.1549,
+      "net_positive_rate": 0.475,
+      "net_positive_rate_wilson_ci95": [
+        0.4127,
+        0.5381
+      ]
+    },
+    "post_cost_0.05R": {
+      "n_net": 240,
+      "profit_factor": 1.2208,
+      "pf_ci95": [
+        0.9235,
+        1.6014
+      ],
+      "avg_net_r": 0.1049,
+      "net_positive_rate": 0.4708,
+      "net_positive_rate_wilson_ci95": [
+        0.4086,
+        0.5339
+      ]
+    },
+    "breakeven_cost": 0.1549
+  },
+  "performance_r3_h16_RR3": {
+    "n_net": 240,
+    "pre_cost": {
+      "n_net": 240,
+      "profit_factor": 1.856,
+      "pf_ci95": [
+        1.3683,
+        2.4664
+      ],
+      "avg_net_r": 0.3841,
+      "net_positive_rate": 0.475,
+      "net_positive_rate_wilson_ci95": [
+        0.4127,
+        0.5381
+      ]
+    },
+    "post_cost_0.05R": {
+      "n_net": 240,
+      "profit_factor": 1.7031,
+      "pf_ci95": [
+        1.2508,
+        2.2604
+      ],
+      "avg_net_r": 0.3341,
+      "net_positive_rate": 0.4708,
+      "net_positive_rate_wilson_ci95": [
+        0.4086,
+        0.5339
+      ]
+    },
+    "breakeven_cost": 0.3841
+  }
+}

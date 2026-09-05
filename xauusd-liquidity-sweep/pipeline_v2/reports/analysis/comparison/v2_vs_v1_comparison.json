@@ -1,0 +1,119 @@
+{
+  "meta": {
+    "report_title": "V2.0.0 vs V1.2.0 Comparison Report",
+    "date": "2026-09-04",
+    "cost_applied": 0.05,
+    "v1_label": "frozen v1.2.0 (n=974/973 net)",
+    "v2_label": "v2.0.0 (nguoc_trend + max_pen≤0.20, n=121 confirmed)"
+  },
+  "event_volume_comparison": {
+    "v1_raw_events": 3772,
+    "v2_raw_events": 462,
+    "v1_confirmed": 974,
+    "v2_confirmed": 121,
+    "v2_reduction_pct": 87.6,
+    "v1_win_rate": 0.1817,
+    "v2_win_rate": 0.2645,
+    "v1_net_positive_rate": 0.4224,
+    "v2_net_positive_rate": 0.4876,
+    "improvement_net_positive_bps": 652
+  },
+  "model_performance": {
+    "v1": {
+      "test_pr_auc": 0.2275,
+      "test_method": "5-fold chronological CV"
+    },
+    "v2": {
+      "test_pr_auc": 0.5760,
+      "pr_auc_x_vs_v1": 2.53,
+      "test_roc_auc": 0.7563,
+      "brier": 0.1566,
+      "test_set_size": 24,
+      "test_method": "single hold-out (1 fold, n=121 too small for 5-fold WF)",
+      "wf_oas_pr_auc": 0.8222,
+      "wf_n_folds": 1
+    }
+  },
+  "top_probability_comparison": {
+    "v1": {
+      "threshold_0.25": { "count": 223, "pf": 1.3045, "avg_r": 0.1619, "breakeven_cost": 0.1619 },
+      "threshold_0.20": { "count": 360, "pf": 1.1653, "avg_r": 0.0897, "breakeven_cost": 0.0897 },
+      "threshold_0.40": { "count": 32, "pf": 1.2784, "avg_r": 0.1495, "breakeven_cost": 0.1495 }
+    },
+    "v2_oos": {
+      "threshold_0.20": { "count": 56, "pf": 2.353, "avg_r": 0.5104, "breakeven_cost": 0.5604 },
+      "threshold_0.25": { "count": 52, "pf": 2.069, "avg_r": 0.4342, "breakeven_cost": 0.4842 },
+      "threshold_0.30": { "count": 44, "pf": 2.455, "avg_r": 0.5332, "breakeven_cost": 0.5832 },
+      "threshold_0.40": { "count": 35, "pf": 3.228, "avg_r": 0.6980, "breakeven_cost": 0.7480 }
+    }
+  },
+  "filter_stack_comparison": {
+    "entries": [
+      { "name": "V1 whole_pool", "n": 973, "pf_at_005r": 0.9322, "avg_r_at_005r": -0.036, "breakeven": 0.014, "pf_ci95": [0.810, 1.073] },
+      { "name": "V1 rule_40_49", "n": 188, "pf_at_005r": 1.0986, "avg_r_at_005r": 0.0419, "breakeven": 0.0919, "pf_ci95": [0.775, 1.544] },
+      { "name": "V1 top_prob≥0.25", "n": 223, "pf_at_005r": 1.1999, "avg_r_at_005r": 0.1119, "breakeven": 0.1619, "pf_ci95": [0.895, 1.583] },
+      { "name": "V2 nguoc_trend", "n": 275, "pf_at_005r": 1.0463, "avg_r_at_005r": 0.0245, "breakeven": 0.0745, "pf_ci95": [0.793, 1.351] },
+      { "name": "V2 nguoc+prob≥0.25", "n": 69, "pf_at_005r": 1.5473, "avg_r_at_005r": 0.2812, "breakeven": 0.3312, "pf_ci95": [0.927, 2.565] },
+      { "name": "V2 triple (nguoc+prob≥.25+pen≤.20)", "n": 38, "pf_at_005r": 3.0406, "avg_r_at_005r": 0.7197, "breakeven": 0.7697, "pf_ci95_lower": 1.549, "pf_ci95_upper": 6.498 },
+      { "name": "V2 triple + R:R=3.0", "n": 38, "pf_at_005r": 4.3836, "avg_r_at_005r": 1.1934, "breakeven": null, "pf_ci95_lower": 2.238, "pf_ci95_upper": 8.961 }
+    ]
+  },
+  "rr_optimization_triple": {
+    "n": 38,
+    "n_wins": 18,
+    "n_losses": 12,
+    "n_time": 8,
+    "cost_used": 0.05,
+    "levels": [
+      { "ratio": 1.0, "pf": 1.698, "avg_r": 0.246, "breakeven": 0.296 },
+      { "ratio": 1.5, "pf": 2.369, "avg_r": 0.483, "breakeven": 0.533 },
+      { "ratio": 2.0, "pf": 3.041, "avg_r": 0.720, "breakeven": 0.770 },
+      { "ratio": 2.5, "pf": 3.712, "avg_r": 0.957, "breakeven": null },
+      { "ratio": 3.0, "pf": 4.384, "avg_r": 1.193, "breakeven": null }
+    ],
+    "optimal_ratio": 3.0
+  },
+  "verdict": {
+    "replace_baseline": true,
+    "v2_advantages": [
+      "PF 3.04-4.38 vs V1 best 1.20 (2.5-3.7×)",
+      "95% CI lower bound > 1 — not achieved by any V1 subset",
+      "Breakeven 0.770R vs 0.014R (55× improvement)",
+      "PR-AUC 2.53× higher (0.576 vs 0.228)",
+      "Net positive rate +652 bps (48.8% vs 42.2%)"
+    ],
+    "conditions_for_adoption": [
+      "OOS validation on fresh data (post-2025)",
+      "Monitor win rate stability (depends on 63.2% win rate)",
+      "Start with 1/3-1/2 normal risk",
+      "CI-based stop: halt if PF lower bound <1 after 30 trades",
+      "Restore overwritten V1 frozen baseline files"
+    ],
+    "caveats": [
+      "Sample size: n=38 triple intersection (3.9% of original pool)",
+      "Single hold-out test — less reliable than CV",
+      "Walk-forward only 1 fold (n=121 too small)",
+      "Multiple testing selection bias possible",
+      "6/13 v1.2.0 frozen files overwritten by V2 pipeline run"
+    ]
+  },
+  "frozen_status": {
+    "v2_freeze_file": "pipeline_v2/artifacts/freeze_status_v2.0.0.md",
+    "v2_artifacts_md5_verified": 11,
+    "v1_frozen_intact_core": {
+      "models": true,
+      "test_metrics": true,
+      "confirmed_events": true,
+      "n_intact": 7,
+      "n_total": 13,
+      "overwritten_files": [
+        "reports/walk_forward_report.json",
+        "reports/walk_forward_report.md",
+        "reports/figures/walk_forward_folds.png",
+        "reports/top_prob_subset_analysis.json (MISSING)",
+        "reports/top_prob_subset_analysis.md (MISSING)",
+        "reports/score_bucket_report.md"
+      ]
+    }
+  }
+}

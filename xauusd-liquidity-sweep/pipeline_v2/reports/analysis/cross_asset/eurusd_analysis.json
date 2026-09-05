@@ -1,0 +1,97 @@
+{
+  "symbol": "EURUSD",
+  "metadata": {
+    "bars": 215570,
+    "date_range": "2018-01-01 22:00:00+00:00 \u2192 2026-09-03 22:00:00+00:00",
+    "v2_nguoc_trend": true,
+    "v2_max_penetration_atr": 0.2,
+    "v2_target_r": 3.0,
+    "cost_base_r": 0.05,
+    "entry_mode": "next_open_after_confirmation",
+    "group_rule": "first"
+  },
+  "filter_stack": {
+    "h1_trend_bars_available": 215564,
+    "baseline_sweep_bars": 4290,
+    "v2_nguoc_trend_bars": 1124,
+    "confirmed_events": 267,
+    "labeled_valid": 267,
+    "net_valid": 267,
+    "direction_split": {
+      "long": 135,
+      "short": 132
+    }
+  },
+  "outcome_breakdown_2R_h16": {
+    "tp": 46,
+    "sl": 125,
+    "time_out": 96,
+    "ambiguous": 0
+  },
+  "performance_base_2R_h16": {
+    "n_confirmed": 267,
+    "n_valid": 267,
+    "n_net_valid": 267,
+    "pre_cost": {
+      "n_net": 267,
+      "profit_factor": 1.0231,
+      "pf_ci95": [
+        0.7725,
+        1.3264
+      ],
+      "avg_net_r": 0.0119,
+      "net_positive_rate": 0.4007,
+      "net_positive_rate_wilson_ci95": [
+        0.3438,
+        0.4605
+      ]
+    },
+    "post_cost_0.05R": {
+      "n_net": 267,
+      "profit_factor": 0.9297,
+      "pf_ci95": [
+        0.7042,
+        1.2109
+      ],
+      "avg_net_r": -0.0381,
+      "net_positive_rate": 0.397,
+      "net_positive_rate_wilson_ci95": [
+        0.3402,
+        0.4568
+      ]
+    },
+    "breakeven_cost": 0.0119
+  },
+  "performance_r3_h16_RR3": {
+    "n_net": 267,
+    "pre_cost": {
+      "n_net": 267,
+      "profit_factor": 1.3595,
+      "pf_ci95": [
+        1.0138,
+        1.7923
+      ],
+      "avg_net_r": 0.1841,
+      "net_positive_rate": 0.4007,
+      "net_positive_rate_wilson_ci95": [
+        0.3438,
+        0.4605
+      ]
+    },
+    "post_cost_0.05R": {
+      "n_net": 267,
+      "profit_factor": 1.2473,
+      "pf_ci95": [
+        0.9335,
+        1.6238
+      ],
+      "avg_net_r": 0.1341,
+      "net_positive_rate": 0.397,
+      "net_positive_rate_wilson_ci95": [
+        0.3402,
+        0.4568
+      ]
+    },
+    "breakeven_cost": 0.1841
+  }
+}
