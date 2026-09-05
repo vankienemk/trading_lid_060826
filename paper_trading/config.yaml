@@ -1,0 +1,125 @@
+# =============================================================================
+# Paper Trading Configuration — Liquidity Sweep V2
+# =============================================================================
+# This file merges the frozen V2 pipeline configuration (v2_frozen.yaml) with
+# paper-trading-specific settings. The pipeline parameters must NEVER be altered
+# while OOS data remain active — they are copied verbatim from the frozen spec.
+#
+# References:
+#   - xauusd-liquidity-sweep/pipeline_v2/configs/v2_frozen.yaml
+# =============================================================================
+
+# ---------------------------------------------------------------------------
+# Frozen V2 Pipeline Configuration (copied verbatim from v2_frozen.yaml)
+# ---------------------------------------------------------------------------
+
+project:
+  symbol: XAUUSD
+  secondary_symbol: EURUSD
+  timeframe: M15
+  timezone: UTC
+  random_seed: 42
+
+pipeline:
+  version: v2
+  freeze_date: "2026-09-05"
+  freeze_commit: ""
+
+sweep:
+  v2_nguoc_trend: true
+  v2_target_r: 3.0
+  min_penetration_atr: 0.05
+  max_penetration_atr: 0.20
+  min_wick_ratio: 0.35
+  min_reclaim_atr: 0.00
+  cooldown_bars: 4
+  group_rule: first
+
+confirmation:
+  enabled: true
+  max_wait_bars: 3
+  require_break_sweep_extreme: true
+  min_body_ratio: 0.60
+  min_range_atr: 0.80
+
+entry:
+  mode: next_open_after_confirmation
+  slippage_price: 0.0
+  spread_price: 0.0
+
+stop:
+  mode: sweep_extreme
+  buffer_atr: 0.10
+
+labeling:
+  horizons: [16]
+  reward_r_values: [2.0]
+  primary_horizon: 16
+  primary_reward_r: 2.0
+  same_bar_policy: ambiguous
+  time_barrier_result: mark_to_market
+
+costs:
+  half_spread_price: 0.0
+  slippage_price: 0.0
+  commission_r: 0.0
+
+indicators:
+  atr_period: 14
+
+position_sizing:
+  XAUUSD: 1.0
+  EURUSD: 0.50
+
+kill_switch:
+  method: block_bootstrap
+  block_size: 25
+  min_trades: 50
+  threshold_pf_ci_lower: 1.0
+  per_asset: true
+
+# ---------------------------------------------------------------------------
+# Paper Trading Settings (additions for the live paper trading system)
+# ---------------------------------------------------------------------------
+
+trading:
+  # Assets to trade (from spec: XAUUSD primary, EURUSD secondary)
+  symbols:
+    - XAUUSDm
+    - EURUSDm
+
+  # Default lot size for order placement
+  default_lot_size: 0.01
+
+  # Maximum number of concurrent open positions (total across all assets)
+  max_open_positions: 1
+
+  # Minimum interval in minutes between consecutive signals (cooldown)
+  min_interval_minutes: 15
+
+  # MCP (MetaTrader 5 Client Protocol) endpoint
+  mcp_endpoint: "http://127.0.0.1:22346/mcp"
+
+  # Environment variable name that holds the MCP authentication token
+  mcp_token_env: "MCP_TOKEN"
+
+  # Prefix prepended to order comments for easy identification in MT5
+  magic_comment_prefix: "LSW-V2"
+
+  # Automation level (1 = manual confirm via dashboard, 2 = semi-auto, 3 = full auto)
+  automation_level: 3
+
+  # Logging
+  db_path: "paper_trading.db"
+
+  # Default values for RiskGuard (mirrors risk_guard.py defaults)
+  risk:
+    max_open_per_asset: 1
+    max_open_total: 2
+    min_interval_since_last_s: 300
+
+  # Signal engine model paths (relative to project root)
+  signal_engine:
+    model_path: "../xauusd-liquidity-sweep/pipeline_v2/artifacts/models/model.pkl"
+    calibrator_path: "../xauusd-liquidity-sweep/pipeline_v2/artifacts/models/calibrator.pkl"
+    v2_frozen_config_path: "../xauusd-liquidity-sweep/pipeline_v2/configs/v2_frozen.yaml"
