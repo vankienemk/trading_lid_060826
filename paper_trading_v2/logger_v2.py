@@ -1,11 +1,12 @@
 """
-logger_v2.py — Paper Trading V2 Logger Module (SQLite)
+logger_v2.py — Paper Trading V2 Logger Module (SQLite + Ring Buffer)
 
 Stores every signal-to-exit lifecycle for any asset (XAUUSD, EURUSD, etc.).
 Written BEFORE sending the order (entry_planned / stop / target known),
 then UPDATED after the order fills and exits.
 
 Adds a user_action_log table for tracking GUI user actions.
+Adds a system_logs table for the centralized System Logger (GUI_REWORK §5).
 
 Schema columns for the signals table (spec section 5):
 
@@ -43,11 +44,24 @@ user_action_log table schema:
                                               "reconnect_mcp"
   details_json           TEXT               — arbitrary JSON with action-specific fields
 
-Dependencies: Python 3.10+ standard library only (sqlite3, uuid, datetime).
+system_logs table schema (GUI_REWORK §5.7):
+
+  id                     INTEGER PRIMARY KEY AUTOINCREMENT
+  timestamp              TEXT (ISO-8601)    — when the log was created
+  level                  TEXT NOT NULL      — DEBUG / INFO / WARNING / ERROR / CRITICAL
+  source                 TEXT NOT NULL      — SignalEngine, RiskGuard, Execution, MCP, System, UserAction, etc.
+  symbol                 TEXT               — instrument name or empty string
+  message                TEXT NOT NULL      — human-readable log message
+  extra_json             TEXT               — optional JSON blob for additional context
+
+Dependencies: Python 3.10+ standard library only (sqlite3, uuid, datetime, collections, threading).
 """
 
+import json
 import sqlite3
+import threading
 import uuid
+from collections import deque
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Optional
@@ -102,7 +116,27 @@ CREATE TABLE IF NOT EXISTS user_action_log (
 );
 """
 
-_SCHEMA_SQL = _SIGNALS_TABLE_SQL + _USER_ACTION_LOG_SQL
+_SYSTEM_LOGS_SQL = """
+CREATE TABLE IF NOT EXISTS system_logs (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    timestamp   TEXT NOT NULL,
+    level       TEXT NOT NULL,
+    source      TEXT NOT NULL,
+    symbol      TEXT,
+    message     TEXT NOT NULL,
+    extra_json  TEXT
+);
+"""
+
+# Index on timestamp for time-range queries
+_SYSTEM_LOGS_INDEX_SQL = """
+CREATE INDEX IF NOT EXISTS idx_system_logs_timestamp ON system_logs(timestamp);
+CREATE INDEX IF NOT EXISTS idx_system_logs_level     ON system_logs(level);
+CREATE INDEX IF NOT EXISTS idx_system_logs_symbol    ON system_logs(symbol);
+CREATE INDEX IF NOT EXISTS idx_system_logs_source    ON system_logs(source);
+"""
+
+_SCHEMA_SQL = _SIGNALS_TABLE_SQL + _USER_ACTION_LOG_SQL + _SYSTEM_LOGS_SQL + _SYSTEM_LOGS_INDEX_SQL
 
 
 # ---------------------------------------------------------------------------
@@ -114,13 +148,69 @@ def _get_connection(db_path: Optional[str] = None) -> sqlite3.Connection:
 
     Sets ``row_factory`` to ``sqlite3.Row`` so that cursor fetch methods
     return dictionary-like rows (usable via ``dict(row)``).
+
+    Also ensures the required tables exist in case the DB was created
+    by an older version of the module.
     """
     path = db_path if db_path is not None else str(DEFAULT_DB_PATH)
     conn = sqlite3.connect(path)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA journal_mode=WAL;")       # safe concurrent reads
     conn.execute("PRAGMA foreign_keys=ON;")
+    # Ensure all required tables exist (idempotent)
+    try:
+        conn.executescript(_SCHEMA_SQL)
+        conn.commit()
+    except Exception:
+        pass
     return conn
+
+
+# ---------------------------------------------------------------------------
+# In-memory ring buffer for real-time system log display (GUI_REWORK §5.5)
+# Thread-safe: lock-protected writes and reads.
+# ---------------------------------------------------------------------------
+
+_RING_BUFFER_MAX = 10_000
+_ring_buffer: deque = deque(maxlen=_RING_BUFFER_MAX)
+_ring_lock = threading.Lock()
+
+
+def _push_to_ring(entry: dict[str, Any]) -> None:
+    """Append a log entry dict to the thread-safe ring buffer."""
+    with _ring_lock:
+        _ring_buffer.append(entry)
+
+
+def get_ring_buffer() -> list[dict[str, Any]]:
+    """Return a snapshot copy of the ring buffer (newest last).
+
+    The returned list is a shallow copy — safe for the GUI to iterate
+    without holding the lock.
+    """
+    with _ring_lock:
+        return list(_ring_buffer)
+
+
+def clear_ring_buffer() -> None:
+    """Clear the in-memory ring buffer (e.g. on user 'Clear log')."""
+    with _ring_lock:
+        _ring_buffer.clear()
+
+
+def clear_system_logs(db_path: Optional[str] = None) -> int:
+    """Delete all rows from the system_logs table.
+
+    Returns:
+        Number of rows deleted.
+    """
+    conn = _get_connection(db_path)
+    try:
+        cursor = conn.execute("DELETE FROM system_logs")
+        conn.commit()
+        return cursor.rowcount
+    finally:
+        conn.close()
 
 
 # ---------------------------------------------------------------------------
@@ -144,6 +234,153 @@ def init_db(db_path: Optional[str] = None) -> str:
     conn.commit()
     conn.close()
     return str(path.resolve())
+
+
+# ---------------------------------------------------------------------------
+# Centralized System Logger (GUI_REWORK §5.7)
+# ---------------------------------------------------------------------------
+
+_LEVELS = frozenset(["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"])
+
+
+def log(
+    level: str,
+    source: str,
+    symbol: Optional[str] = None,
+    message: str = "",
+    extra: Optional[dict[str, Any]] = None,
+    *,
+    db_path: Optional[str] = None,
+) -> dict[str, Any]:
+    """Centralized system log entry point.
+
+    Writes to the ``system_logs`` SQLite table AND pushes to the
+    in-memory ring buffer for real-time GUI display.
+
+    Args:
+        level: One of ``"DEBUG"``, ``"INFO"``, ``"WARNING"``,
+               ``"ERROR"``, ``"CRITICAL"``.
+        source: Module / component name, e.g. ``"SignalEngine"``,
+                ``"RiskGuard"``, ``"Execution"``, ``"MCP"``, ``"System"``.
+        symbol: Instrument name or ``None`` / empty string (optional).
+        message: Human-readable log message.
+        extra: Optional JSON-serializable dict with additional context
+               (e.g. ``{"order_id": "123", "price": 2650.50}``).
+        db_path: Override the database path.
+
+    Returns:
+        A dictionary representation of the inserted row.
+    """
+    # Validate level
+    if level.upper() not in _LEVELS:
+        level = "INFO"
+    else:
+        level = level.upper()
+
+    now = _iso_now()
+    extra_json = json.dumps(extra, default=str) if extra else None
+    symbol_val = symbol if symbol else ""
+
+    # 1. Write to SQLite
+    conn = _get_connection(db_path)
+    try:
+        cursor = conn.execute(
+            """
+            INSERT INTO system_logs (timestamp, level, source, symbol, message, extra_json)
+            VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            (now, level, source, symbol_val, message, extra_json),
+        )
+        conn.commit()
+        row = conn.execute(
+            "SELECT * FROM system_logs WHERE id = ?", (cursor.lastrowid,)
+        ).fetchone()
+        entry = _row_to_dict(row)
+    finally:
+        conn.close()
+
+    # 2. Push to ring buffer
+    _push_to_ring(entry)
+
+    return entry
+
+
+# ---------------------------------------------------------------------------
+# System log query helpers
+# ---------------------------------------------------------------------------
+
+
+def query_system_logs(
+    *,
+    levels: Optional[list[str]] = None,
+    sources: Optional[list[str]] = None,
+    symbols: Optional[list[str]] = None,
+    search_text: Optional[str] = None,
+    time_from: Optional[str] = None,
+    time_to: Optional[str] = None,
+    limit: int = 10_000,
+    db_path: Optional[str] = None,
+) -> list[dict[str, Any]]:
+    """Query the system_logs table with optional filters.
+
+    Args:
+        levels: Filter by log level(s) — e.g. ``["INFO", "ERROR"]``.
+                ``None`` means all levels.
+        sources: Filter by source(s). ``None`` means all sources.
+        symbols: Filter by symbol(s). ``None`` means all symbols.
+        search_text: Full-text search on the message column.
+        time_from: ISO-8601 start timestamp (inclusive).
+        time_to: ISO-8601 end timestamp (inclusive).
+        limit: Maximum rows to return (default 10_000).
+        db_path: Override the database path.
+
+    Returns:
+        A list of row dictionaries (oldest first).
+    """
+    conditions: list[str] = []
+    params: list[Any] = []
+
+    if levels:
+        placeholders = ",".join("?" for _ in levels)
+        conditions.append(f"level IN ({placeholders})")
+        params.extend(levels)
+    if sources:
+        placeholders = ",".join("?" for _ in sources)
+        conditions.append(f"source IN ({placeholders})")
+        params.extend(sources)
+    if symbols:
+        placeholders = ",".join("?" for _ in symbols)
+        conditions.append(f"symbol IN ({placeholders})")
+        params.extend(symbols)
+    if search_text:
+        conditions.append("message LIKE ?")
+        params.append(f"%{search_text}%")
+    if time_from:
+        conditions.append("timestamp >= ?")
+        params.append(time_from)
+    if time_to:
+        conditions.append("timestamp <= ?")
+        params.append(time_to)
+
+    where_clause = " AND ".join(conditions) if conditions else "1=1"
+
+    sql = f"""
+        SELECT * FROM system_logs
+        WHERE {where_clause}
+        ORDER BY timestamp ASC
+        LIMIT ?
+    """
+    params.append(limit)
+
+    conn = _get_connection(db_path)
+    try:
+        rows = conn.execute(sql, params).fetchall()
+        return [_row_to_dict(r) for r in rows]
+    finally:
+        conn.close()
+
+
+# ---------------------------------------------------------------------------
 
 
 def log_signal(

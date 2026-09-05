@@ -1,0 +1,8 @@
+# EURUSD pipeline override
+# Changes symbol, raw data path, and output paths for EURUSD training.
+project:
+  symbol: EURUSD
+
+data:
+  input_path: data/raw/EURUSD_M15_201801020000_202609040000.csv
+  output_path: data/processed/eurusd_m15.parquet

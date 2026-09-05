@@ -13,8 +13,9 @@ from pathlib import Path
 from typing import Any, Optional
 import numpy as np
 import yaml
-from logger_v2 import get_recent_trades
-from shared_app_state_v2 import get_state, SymbolConfig
+from paper_trading_v2.logger_v2 import get_recent_trades
+from paper_trading_v2.logger_v2 import log as syslog
+from paper_trading_v2.shared_app_state_v2 import get_state, SymbolConfig
 
 _HERE = Path(__file__).resolve().parent
 _PROJECT_ROOT = _HERE.parent
@@ -119,6 +120,10 @@ class RiskGuard:
             self._kill_switch_activated_at.setdefault(name, 0.0)
             self._last_order_time.setdefault(name, 0.0)
             loaded[name] = raw
+        if loaded:
+            syslog("INFO", "RiskGuard", "",
+                   f"Loaded {len(loaded)} symbol configs: {', '.join(sorted(loaded.keys()))}",
+                   extra={"symbols": sorted(loaded.keys())})
         return loaded
 
     def get_symbol_config(self, asset: str) -> Optional[dict[str, Any]]:
@@ -174,24 +179,35 @@ class RiskGuard:
     def evaluate_new_signal(self, asset: str, current_open_positions: list[dict[str, Any]],
                             order_sent_time: Optional[float] = None) -> dict[str, Any]:
         if self._state.emergency_stop:
+            syslog("ERROR", "RiskGuard", asset, "Signal blocked: global emergency stop active")
             return {"allowed": False, "reason": "Global emergency stop is active"}
         base = asset.rstrip("m") if asset.endswith("m") else asset
         if base not in self._state.get_registered_symbols():
+            syslog("ERROR", "RiskGuard", asset, f"Signal blocked: unknown asset {asset}")
             return {"allowed": False, "reason": f"Unknown asset: {asset}"}
         rg = self._get_risk_guard_config(base)
         ks = self._state.kill_switch_status.get(base)
         if ks is not None and ks.active:
+            syslog("WARNING", "RiskGuard", base, f"Signal blocked by kill-switch: {ks.reason}")
             return {"allowed": False, "reason": ks.reason or "Kill-switch active"}
         mpa = rg.get("max_open_positions", self.max_open_per_asset)
         if sum(1 for p in current_open_positions if p.get("asset") == base) >= mpa:
-            return {"allowed": False, "reason": f"Max open per asset ({mpa}) for {base}"}
+            reason = f"Max open per asset ({mpa}) for {base}"
+            syslog("WARNING", "RiskGuard", base, f"Signal blocked: {reason}")
+            return {"allowed": False, "reason": reason}
         if len(current_open_positions) >= self.max_open_total:
-            return {"allowed": False, "reason": f"Max total open ({self.max_open_total})"}
+            reason = f"Max total open ({self.max_open_total})"
+            syslog("WARNING", "RiskGuard", base, f"Signal blocked: {reason}")
+            return {"allowed": False, "reason": reason}
         now = order_sent_time if order_sent_time is not None else time.time()
         lt = self._last_order_time.get(base, 0.0)
         if now - lt < self.min_interval_since_last_s:
             rem = self.min_interval_since_last_s - (now - lt)
-            return {"allowed": False, "reason": f"Min interval {self.min_interval_since_last_s}s for {base} ({rem:.0f}s remaining)"}
+            reason = f"Min interval {self.min_interval_since_last_s}s for {base} ({rem:.0f}s remaining)"
+            syslog("WARNING", "RiskGuard", base, f"Signal blocked: {reason}")
+            return {"allowed": False, "reason": reason}
+        syslog("INFO", "RiskGuard", base, "Signal passed all risk checks",
+               extra={"asset": base, "open_positions": len(current_open_positions)})
         return {"allowed": True, "reason": ""}
 
     def record_order_sent(self, asset: str, timestamp: Optional[float] = None) -> None:
@@ -232,8 +248,27 @@ class RiskGuard:
             self._state.update_kill_switch(asset, True, kr)
             if not was_active:
                 self._kill_switch_activated_at[asset] = time.time()
+                syslog("CRITICAL", "RiskGuard", asset,
+                       f"Kill-switch ACTIVATED: CI lower {ci_l:.4f} < {th:.4f} ({n_valid} trades)",
+                       extra={"asset": asset, "n_valid": n_valid,
+                              "pf_ci_lower": round(ci_l, 4) if ci_l else None,
+                              "threshold": th})
+            else:
+                syslog("WARNING", "RiskGuard", asset,
+                       f"Kill-switch remains active: {kr}",
+                       extra={"asset": asset, "ci_lower": round(ci_l, 4) if ci_l else None})
         else:
+            was_inactive = not (self._state.kill_switch_status.get(asset).active if self._state.kill_switch_status.get(asset) else True)
             self._state.update_kill_switch(asset, False, kr)
+            if not was_inactive:
+                syslog("INFO", "RiskGuard", asset,
+                       f"Kill-switch DEACTIVATED — PF CI lower {ci_l:.4f} >= {th:.4f}",
+                       extra={"asset": asset, "n_valid": n_valid,
+                              "pf_ci_lower": round(ci_l, 4) if ci_l else None,
+                              "pf": round(pf, 4) if pf else None})
+            elif n_valid >= mt:
+                syslog("DEBUG", "RiskGuard", asset,
+                       f"Kill-switch evaluation: PF={pf:.4f}, CI_lower={ci_l:.4f}, n={n_valid} (safe)")
         return m
 
     def _refresh_asset(self, asset: str) -> dict[str, Any]:

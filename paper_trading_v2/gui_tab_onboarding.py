@@ -2,31 +2,31 @@
 gui_tab_onboarding.py — Tab 1: Symbol Onboarding
 
 Implements:
-  - List of symbols with status colors (validated=green, candidate=yellow, rejected=red)
-  - "Add New Symbol" button → 7-step wizard (data audit → build events → build dataset →
-    train → walk-forward → gate decision → activate)
-  - Each step unlocks the next upon completion
-  - Wizard progress bar at the top of the wizard panel
+  - Symbol registry table: Symbol | Status | Model đang dùng | Active | Actions
+  - "Add New Symbol" dialog: QComboBox for MCP symbols + QComboBox for models
+    + Browse local model button (custom path)
+  - "Change Model" dialog for validated symbols
+  - Activation / deactivation toggle
+  - Only validated/candidate/rejected statuses (no intermediate wizard steps)
 """
 
 from __future__ import annotations
 
-import json
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from PySide6.QtCore import Qt, QTimer
+from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (
-    QAbstractScrollArea,
     QComboBox,
     QDialog,
     QDialogButtonBox,
-    QFrame,
-    QGroupBox,
+    QFileDialog,
     QHBoxLayout,
+    QHeaderView,
     QLabel,
+    QLineEdit,
     QPushButton,
-    QScrollArea,
     QTableWidget,
     QTableWidgetItem,
     QVBoxLayout,
@@ -41,36 +41,16 @@ from paper_trading_v2.gui_components import (
     COLOR_SURFACE,
     COLOR_TEXT,
     ConfirmationDialog,
-    fmt_time,
 )
 from paper_trading_v2.gui_bridge import SystemBridge
 
 
-# ---------------------------------------------------------------------------
-# Wizard step definitions
-# ---------------------------------------------------------------------------
-
-WIZARD_STEPS = [
-    ("1. Data Audit",     "Audit raw data (missing bars, outliers)"),
-    ("2. Build Events",   "Detect sweep events on historical data"),
-    ("3. Build Dataset",  "Build labeled dataset with features"),
-    ("4. Train",          "Train model on primary horizon"),
-    ("5. Walk-Forward",   "Walk-forward validation"),
-    ("6. Gate Decision",  "Review gate metrics → pass/fail"),
-    ("7. Activate",       "Set status=validated and register in engine"),
-]
-
-
 class SymbolOnboardingTab(QWidget):
-    """Tab 1: Symbol Onboarding — registry view + 7-step wizard."""
+    """Tab 1: Symbol Onboarding — registry table with model selection."""
 
     def __init__(self, bridge: SystemBridge, parent: Optional[QWidget] = None) -> None:
         super().__init__(parent)
         self._bridge = bridge
-        self._wizard_open = False  # True when wizard is active
-        self._wizard_current_step = 0
-        self._wizard_completed_steps: List[int] = []
-
         self._build_ui()
         self._refresh_symbols()
 
@@ -89,14 +69,15 @@ class SymbolOnboardingTab(QWidget):
         layout.addWidget(header)
 
         desc = QLabel(
-            "Manage symbols and onboard new ones through the 7-step pipeline. "
-            "Only symbols with status <b>validated</b> receive live signal engines."
+            "Manage symbols and assign models. "
+            "Only symbols with status <b>validated</b> and a model assigned "
+            "receive live signal engines."
         )
         desc.setWordWrap(True)
         desc.setStyleSheet(f"color: {COLOR_NEUTRAL}; padding-bottom: 8px;")
         layout.addWidget(desc)
 
-        # --- Add Symbol button ---
+        # --- Button row ---
         btn_row = QHBoxLayout()
         self._add_btn = QPushButton("➕ Add New Symbol")
         self._add_btn.setStyleSheet(
@@ -116,91 +97,43 @@ class SymbolOnboardingTab(QWidget):
         )
         self._add_btn.clicked.connect(self._on_add_symbol)
         btn_row.addWidget(self._add_btn)
+
+        self._reload_btn = QPushButton("🔄 Reload Model Registry")
+        self._reload_btn.setStyleSheet(
+            f"""
+            QPushButton {{
+                background-color: {COLOR_SURFACE};
+                color: white;
+                padding: 8px 16px;
+                border-radius: 4px;
+                font-size: 13px;
+            }}
+            QPushButton:hover {{
+                background-color: #3a3a3a;
+            }}
+            """
+        )
+        self._reload_btn.clicked.connect(self._on_reload_registry)
+        btn_row.addWidget(self._reload_btn)
         btn_row.addStretch()
         layout.addLayout(btn_row)
 
-        # --- Symbol table ---
-        self._table = QTableWidget(0, 4)
+        # --- Symbol table: Symbol | Status | Model đang dùng | Active | Actions ---
+        self._table = QTableWidget(0, 5)
         self._table.setAlternatingRowColors(True)
-        self._table.setHorizontalHeaderLabels(["Symbol", "Status", "Active", "Actions"])
-        self._table.setColumnWidth(0, 140)
-        self._table.setColumnWidth(1, 120)
-        self._table.setColumnWidth(2, 80)
-        self._table.setColumnWidth(3, 200)
+        self._table.setHorizontalHeaderLabels(
+            ["Symbol", "Status", "Model đang dùng", "Active", "Actions"]
+        )
+        self._table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+        self._table.horizontalHeader().setSectionResizeMode(0, QHeaderView.Interactive)
+        self._table.horizontalHeader().setSectionResizeMode(4, QHeaderView.Interactive)
+        self._table.setColumnWidth(0, 130)
+        self._table.setColumnWidth(4, 260)
         self._table.verticalHeader().setVisible(False)
         self._table.setSelectionBehavior(QTableWidget.SelectRows)
         self._table.setSelectionMode(QTableWidget.SingleSelection)
         self._table.setEditTriggers(QTableWidget.NoEditTriggers)
         layout.addWidget(self._table, stretch=1)
-
-        # --- Wizard panel (starts hidden) ---
-        self._wizard_frame = QFrame()
-        self._wizard_frame.setStyleSheet(
-            f"background-color: #252525; border: 1px solid #3d3d3d; border-radius: 6px; padding: 12px;"
-        )
-        self._wizard_frame.setVisible(False)
-        self._build_wizard_ui()
-        layout.addWidget(self._wizard_frame)
-
-    def _build_wizard_ui(self) -> None:
-        """Build the 7-step wizard panel inside _wizard_frame."""
-        wiz_layout = QVBoxLayout(self._wizard_frame)
-        wiz_layout.setSpacing(8)
-
-        # Wizard title
-        self._wiz_title = QLabel("Onboarding Wizard")
-        self._wiz_title.setStyleSheet("font-size: 15px; font-weight: bold; color: white;")
-        wiz_layout.addWidget(self._wiz_title)
-
-        self._wiz_progress = QLabel("Step 1 of 7")
-        self._wiz_progress.setStyleSheet(f"color: {COLOR_NEUTRAL};")
-        wiz_layout.addWidget(self._wiz_progress)
-
-        # Scrollable step list
-        self._wiz_scroll = QScrollArea()
-        self._wiz_scroll.setWidgetResizable(True)
-        self._wiz_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        self._wiz_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
-        self._wiz_scroll.setStyleSheet("background: transparent; border: none;")
-        self._wiz_scroll.setMaximumHeight(250)
-
-        scroll_content = QWidget()
-        scroll_layout = QVBoxLayout(scroll_content)
-        scroll_layout.setSpacing(4)
-        scroll_layout.setContentsMargins(0, 0, 0, 0)
-
-        # Step list
-        self._step_labels: List[QLabel] = []
-        for idx, (step_name, step_desc) in enumerate(WIZARD_STEPS):
-            lbl = QLabel(f"{'⬜'} {step_name} — {step_desc}")
-            lbl.setWordWrap(True)
-            lbl.setMinimumHeight(22)
-            self._step_labels.append(lbl)
-            scroll_layout.addWidget(lbl)
-
-        scroll_layout.addStretch()
-        self._wiz_scroll.setWidget(scroll_content)
-        wiz_layout.addWidget(self._wiz_scroll)
-
-        # Action button row
-        action_row = QHBoxLayout()
-        self._wiz_back_btn = QPushButton("← Back")
-        self._wiz_next_btn = QPushButton("Start Step →")
-        self._wiz_next_btn.setStyleSheet(
-            f"background-color: {COLOR_POSITIVE}; color: #1e1e1e; font-weight: bold;"
-        )
-        self._wiz_cancel_btn = QPushButton("Cancel")
-        self._wiz_cancel_btn.setStyleSheet(f"background-color: {COLOR_NEGATIVE}; color: white;")
-
-        self._wiz_back_btn.clicked.connect(self._on_wizard_back)
-        self._wiz_next_btn.clicked.connect(self._on_wizard_next)
-        self._wiz_cancel_btn.clicked.connect(self._on_wizard_cancel)
-
-        action_row.addWidget(self._wiz_cancel_btn)
-        action_row.addStretch()
-        action_row.addWidget(self._wiz_back_btn)
-        action_row.addWidget(self._wiz_next_btn)
-        wiz_layout.addLayout(action_row)
 
     # ------------------------------------------------------------------
     # Refresh
@@ -210,6 +143,12 @@ class SymbolOnboardingTab(QWidget):
         """Refresh the symbol table from shared state."""
         snapshot = self._bridge.state.get_snapshot()
         registry = snapshot.get("symbol_registry", {})
+
+        # Pre-load model display names
+        models = self._bridge.get_available_models()
+        model_names: Dict[str, str] = {}
+        for m in models:
+            model_names[m.model_id] = f"{m.model_id} ({m.symbol_origin})"
 
         self._table.setRowCount(len(registry))
 
@@ -223,55 +162,94 @@ class SymbolOnboardingTab(QWidget):
                 "validated": COLOR_POSITIVE,
                 "candidate": COLOR_WARNING,
                 "rejected": COLOR_NEGATIVE,
-                "auditing": COLOR_WARNING,
-                "building_events": COLOR_WARNING,
-                "building_dataset": COLOR_WARNING,
-                "training": COLOR_WARNING,
-                "walk_forward": COLOR_WARNING,
-                "gating": COLOR_WARNING,
             }.get(cfg["status"], COLOR_NEUTRAL)
             status_item.setForeground(QColor(status_color))
             self._table.setItem(row, 1, status_item)
 
+            # Model đang dùng
+            model_id = cfg.get("model_id") or ""
+            model_display = model_names.get(model_id, model_id) if model_id else "—"
+            model_item = QTableWidgetItem(model_display)
+            model_item.setForeground(
+                QColor(COLOR_POSITIVE) if model_id else QColor(COLOR_NEUTRAL)
+            )
+            self._table.setItem(row, 2, model_item)
+
             # Active
             active_item = QTableWidgetItem("✅ Yes" if cfg.get("active", False) else "❌ No")
-            self._table.setItem(row, 2, active_item)
+            active_item.setForeground(
+                QColor(COLOR_POSITIVE) if cfg.get("active", False) else QColor(COLOR_NEUTRAL)
+            )
+            self._table.setItem(row, 3, active_item)
 
-            # Actions: Onboard button
+            # Actions row
             actions_widget = QWidget()
             actions_layout = QHBoxLayout(actions_widget)
             actions_layout.setContentsMargins(4, 0, 4, 0)
 
-            onboard_btn = QPushButton("Start Wizard")
-            onboard_btn.setStyleSheet(
-                f"background-color: {COLOR_WARNING}; color: #1e1e1e; padding: 4px 10px;"
-            )
-            onboard_btn.clicked.connect(
-                lambda checked, s=name: self._start_wizard(s)
-            )
-            actions_layout.addWidget(onboard_btn)
-
+            # Change Model button (for validated symbols only)
             if cfg["status"] == "validated":
+                change_model_btn = QPushButton("🔧 Change Model")
+                change_model_btn.setStyleSheet(
+                    f"background-color: {COLOR_WARNING}; color: #1e1e1e; padding: 4px 10px; font-weight: bold;"
+                )
+                change_model_btn.clicked.connect(
+                    lambda checked, s=name: self._on_change_model(s)
+                )
+                actions_layout.addWidget(change_model_btn)
+
+            # Deactivate / Activate toggle
+            if cfg.get("active", False):
                 deactivate_btn = QPushButton("Deactivate")
-                deactivate_btn.setStyleSheet("padding: 4px 10px;")
+                deactivate_btn.setStyleSheet(
+                    f"background-color: {COLOR_NEGATIVE}; color: white; padding: 4px 10px; font-weight: bold;"
+                )
                 deactivate_btn.clicked.connect(
                     lambda checked, s=name: self._on_deactivate(s)
                 )
                 actions_layout.addWidget(deactivate_btn)
+            else:
+                activate_btn = QPushButton("Activate")
+                activate_btn.setStyleSheet(
+                    f"background-color: {COLOR_POSITIVE}; color: #1e1e1e; padding: 4px 10px; font-weight: bold;"
+                )
+                activate_btn.clicked.connect(
+                    lambda checked, s=name: self._on_activate(s)
+                )
+                actions_layout.addWidget(activate_btn)
+
+            # Change Status button (always visible)
+            change_status_btn = QPushButton("Status")
+            change_status_btn.setStyleSheet(
+                f"background-color: {COLOR_NEUTRAL}; color: white; padding: 4px 8px;"
+            )
+            change_status_btn.clicked.connect(
+                lambda checked, s=name: self._on_change_status(s)
+            )
+            actions_layout.addWidget(change_status_btn)
+
+            # Remove button (with strong confirmation)
+            remove_btn = QPushButton("🗑")
+            remove_btn.setStyleSheet(
+                f"background-color: {COLOR_NEGATIVE}; color: white; padding: 4px 8px; font-weight: bold;"
+            )
+            remove_btn.clicked.connect(
+                lambda checked, s=name: self._on_remove_symbol(s)
+            )
+            actions_layout.addWidget(remove_btn)
 
             actions_layout.addStretch()
-            self._table.setCellWidget(row, 3, actions_widget)
+            self._table.setCellWidget(row, 4, actions_widget)
 
-        # Force row heights so all rows are visible after setRowCount changes
         self._table.resizeRowsToContents()
 
     # ------------------------------------------------------------------
-    # Add Symbol
+    # Add New Symbol
     # ------------------------------------------------------------------
 
     def _on_add_symbol(self) -> None:
-        """Open a dialog with a dropdown of MCP-available symbols, then open wizard."""
-        # Fetch available symbols from MCP — returns List[Dict] with 'symbol' key
+        """Open 'Add New Symbol' dialog with symbol + model selection."""
+        # Fetch available MCP symbols
         raw_symbols = self._bridge.fetch_symbols()
         if not raw_symbols:
             from PySide6.QtWidgets import QMessageBox
@@ -283,7 +261,7 @@ class SymbolOnboardingTab(QWidget):
             )
             return
 
-        # Normalize to string list (handle both List[str] and List[Dict])
+        # Normalize to string list
         available_symbols: List[str] = []
         for s in raw_symbols:
             if isinstance(s, str):
@@ -292,9 +270,12 @@ class SymbolOnboardingTab(QWidget):
                 available_symbols.append(s.get("symbol", s.get("name", "")))
         available_symbols = sorted([s for s in available_symbols if s])
 
-        registered = set(self._bridge.state.get_registered_symbols())
         # Filter out already-registered symbols
-        unregistered = sorted([s for s in available_symbols if s.upper() not in {r.upper() for r in registered}])
+        registered = set(self._bridge.state.get_registered_symbols())
+        unregistered = sorted(
+            [s for s in available_symbols
+             if s.upper() not in {r.upper() for r in registered}]
+        )
 
         if not unregistered:
             from PySide6.QtWidgets import QMessageBox
@@ -305,24 +286,73 @@ class SymbolOnboardingTab(QWidget):
             )
             return
 
+        # Fetch available models from Model Registry
+        models = self._bridge.get_available_models()
+
+        # Build dialog
         dialog = QDialog(self)
         dialog.setWindowTitle("Add New Symbol")
-        dialog.setMinimumWidth(400)
+        dialog.setMinimumWidth(480)
         layout = QVBoxLayout(dialog)
         layout.setSpacing(12)
 
-        msg = QLabel("Select a symbol to add from the MCP market watch:")
-        msg.setWordWrap(True)
-        layout.addWidget(msg)
+        # --- Symbol selection ---
+        symbol_label = QLabel("Select symbol from MCP market watch:")
+        symbol_label.setStyleSheet("font-weight: bold;")
+        layout.addWidget(symbol_label)
 
-        combo = QComboBox()
-        combo.addItems(unregistered)
-        combo.setEditable(False)
-        layout.addWidget(combo)
+        symbol_combo = QComboBox()
+        symbol_combo.addItems(unregistered)
+        symbol_combo.setEditable(False)
+        layout.addWidget(symbol_combo)
 
+        # --- Model selection ---
+        model_label = QLabel("Select model from registry:")
+        model_label.setStyleSheet("font-weight: bold; margin-top: 8px;")
+        layout.addWidget(model_label)
+
+        model_combo = QComboBox()
+        model_combo.addItem("— No model (select later) —", None)
+        for m in models:
+            display = f"{m.model_id} — {m.symbol_origin} (h{m.horizon})"
+            model_combo.addItem(display, m.model_id)
+        model_combo.setEditable(False)
+        layout.addWidget(model_combo)
+
+        # --- Browse local model ---
+        browse_label = QLabel("Or browse a local model path (optional):")
+        browse_label.setStyleSheet(f"color: {COLOR_NEUTRAL}; margin-top: 8px;")
+        layout.addWidget(browse_label)
+
+        browse_row = QHBoxLayout()
+        self._browse_path_input = QLineEdit()
+        self._browse_path_input.setPlaceholderText("Path to model file (e.g. .pkl)...")
+        browse_row.addWidget(self._browse_path_input)
+
+        browse_btn = QPushButton("Browse")
+        browse_btn.clicked.connect(self._on_browse_model)
+        browse_row.addWidget(browse_btn)
+        layout.addLayout(browse_row)
+
+        # --- Status selection ---
+        status_label = QLabel("Initial status:")
+        status_label.setStyleSheet("font-weight: bold; margin-top: 8px;")
+        layout.addWidget(status_label)
+
+        status_combo = QComboBox()
+        status_combo.addItems(["validated", "candidate", "rejected"])
+        status_combo.setCurrentText("candidate")
+        layout.addWidget(status_combo)
+
+        # --- Activate checkbox ---
+        activate_after = QLabel("(Status 'validated' + model assigned = engine-ready)")
+        activate_after.setStyleSheet(f"color: {COLOR_NEUTRAL}; font-size: 11px;")
+        layout.addWidget(activate_after)
+
+        # --- Buttons ---
         button_box = QDialogButtonBox(QDialogButtonBox.Cancel | QDialogButtonBox.Ok)
         confirm_btn = button_box.button(QDialogButtonBox.Ok)
-        confirm_btn.setText("Add & Open Wizard")
+        confirm_btn.setText("Add Symbol")
         confirm_btn.setStyleSheet(
             "background-color: #00cc66; color: #1e1e1e; font-weight: bold;"
         )
@@ -332,183 +362,120 @@ class SymbolOnboardingTab(QWidget):
         button_box.rejected.connect(dialog.reject)
 
         if dialog.exec() == QDialog.Accepted:
-            name = combo.currentText().strip().upper()
+            name = symbol_combo.currentText().strip().upper()
             if not name:
                 return
+
+            selected_model_id = model_combo.currentData()
+            status = status_combo.currentText().strip()
+            active = (status == "validated" and selected_model_id is not None)
+
             from paper_trading_v2.shared_app_state_v2 import SymbolConfig
-            config = SymbolConfig(name=name, status="candidate", active=False)
-            self._bridge.state.register_symbol(name, config)
-            self._bridge.log_action("add_symbol", {"symbol": name})
-            self._refresh_symbols()
-            self._start_wizard(name)
-
-    # ------------------------------------------------------------------
-    # Wizard lifecycle
-    # ------------------------------------------------------------------
-
-    def _start_wizard(self, symbol: str) -> None:
-        """Open the 7-step wizard for the given symbol."""
-        self._wizard_symbol = symbol
-        self._wizard_current_step = 0
-        self._wizard_completed_steps = []
-        self._wizard_open = True
-        self._wizard_frame.setVisible(True)
-        self._update_wizard_ui()
-        self._bridge.log_action("wizard_start", {"symbol": symbol})
-
-    def _update_wizard_ui(self) -> None:
-        """Refresh wizard step labels and button state."""
-        if not self._wizard_open:
-            return
-
-        self._wiz_title.setText(f"Onboarding Wizard — {self._wizard_symbol}")
-        self._wiz_progress.setText(
-            f"Step {self._wizard_current_step + 1} of {len(WIZARD_STEPS)}"
-        )
-
-        for idx, lbl in enumerate(self._step_labels):
-            step_name = WIZARD_STEPS[idx][0]
-            step_desc = WIZARD_STEPS[idx][1]
-            if idx in self._wizard_completed_steps:
-                lbl.setText(f"{'✅'} {step_name} — {step_desc}")
-                lbl.setStyleSheet(f"color: {COLOR_POSITIVE}; font-weight: bold;")
-            elif idx == self._wizard_current_step:
-                lbl.setText(f"{'⏳'} {step_name} — {step_desc} {'(current)'}")
-                lbl.setStyleSheet(f"color: {COLOR_WARNING}; font-weight: bold; "
-                                  f"background-color: #3a3a3a; padding: 2px 4px; border-radius: 3px;")
-            elif idx < self._wizard_current_step:
-                # Completed steps stay fully visible (not collapsed)
-                lbl.setText(f"{'✅'} {step_name} — {step_desc}")
-                lbl.setStyleSheet(f"color: {COLOR_POSITIVE};")
-            else:
-                lbl.setText(f"{'⬜'} {step_name} — {step_desc}")
-                lbl.setStyleSheet(f"color: {COLOR_TEXT};")
-
-        # Button state
-        self._wiz_back_btn.setEnabled(self._wizard_current_step > 0)
-
-        if self._wizard_current_step < len(WIZARD_STEPS):
-            if self._wizard_current_step in self._wizard_completed_steps:
-                self._wiz_next_btn.setText("Next Step →")
-                self._wiz_next_btn.setEnabled(True)
-            elif self._wizard_current_step == len(WIZARD_STEPS) - 1:
-                self._wiz_next_btn.setText("✅ Activate Symbol")
-                self._wiz_next_btn.setEnabled(True)
-            else:
-                self._wiz_next_btn.setText(f"▶ Run {WIZARD_STEPS[self._wizard_current_step][0]}")
-                self._wiz_next_btn.setEnabled(True)
-        else:
-            self._wiz_next_btn.setText("Done")
-            self._wiz_next_btn.setEnabled(True)
-
-        # Scroll to keep current step visible
-        if self._wizard_current_step < len(self._step_labels):
-            target = self._step_labels[self._wizard_current_step]
-            self._wiz_scroll.ensureWidgetVisible(target, 0, 0)
-
-    def _on_wizard_next(self) -> None:
-        """Advance to the next wizard step or complete."""
-        if not self._wizard_open:
-            return
-
-        # Mark current step as completed
-        step = self._wizard_current_step
-        if step not in self._wizard_completed_steps:
-            self._wizard_completed_steps.append(step)
-            self._bridge.log_action(
-                "wizard_step_complete",
-                {
-                    "symbol": self._wizard_symbol,
-                    "step": WIZARD_STEPS[step][0],
-                    "step_index": step,
-                },
+            config = SymbolConfig(
+                name=name,
+                status=status,
+                active=active,
+                model_id=selected_model_id,
             )
+            self._bridge.state.register_symbol(name, config)
+            self._bridge.log_action("add_symbol", {"symbol": name, "model_id": selected_model_id,
+                                                    "status": status})
 
-            # Update symbol status to reflect progress
-            status_map = {
-                0: "auditing",
-                1: "building_events",
-                2: "building_dataset",
-                3: "training",
-                4: "walk_forward",
-                5: "gating",
-                6: "validated",
-            }
-            new_status = status_map.get(step + 1)
-            if new_status and self._wizard_symbol:
-                cfg = self._bridge.state.get_symbol_config(self._wizard_symbol)
-                if cfg:
-                    from paper_trading_v2.shared_app_state_v2 import SymbolConfig
-                    self._bridge.state.register_symbol(
-                        self._wizard_symbol,
-                        SymbolConfig(
-                            name=self._wizard_symbol,
-                            status=new_status,
-                            position_size_multiplier=cfg.position_size_multiplier,
-                            active=(new_status == "validated"),
-                        ),
-                    )
+            # If a local path was browsed, log it (registry does not store path yet)
+            local_path = self._browse_path_input.text().strip()
+            if local_path:
+                self._bridge.log_action("add_symbol_local_path",
+                                        {"symbol": name, "path": local_path})
 
-        # Advance step
-        if step + 1 >= len(WIZARD_STEPS):
-            self._close_wizard()
             self._refresh_symbols()
+
+    def _on_browse_model(self) -> None:
+        """Open a file dialog to pick a local model file."""
+        path, _ = QFileDialog.getOpenFileName(
+            self,
+            "Select Model File",
+            "",
+            "Model Files (*.pkl *.pt *.h5 *.onnx *.joblib *.zip);;All Files (*)",
+        )
+        if path:
+            self._browse_path_input.setText(path)
+
+    # ------------------------------------------------------------------
+    # Change Model
+    # ------------------------------------------------------------------
+
+    def _on_change_model(self, symbol: str) -> None:
+        """Open a dialog to change the model assigned to a validated symbol."""
+        # Fetch available models
+        models = self._bridge.get_available_models()
+        if not models:
+            from PySide6.QtWidgets import QMessageBox
+            QMessageBox.warning(
+                self,
+                "No Models Available",
+                "No models are registered in the Model Registry. "
+                "Please add models to configs/models/index.yaml and reload.",
+            )
             return
 
-        self._wizard_current_step += 1
-        self._update_wizard_ui()
-        self._refresh_symbols()
+        current_cfg = self._bridge.state.get_symbol_config(symbol)
+        current_model_id = current_cfg.model_id if current_cfg else None
 
-    def _on_wizard_back(self) -> None:
-        """Go back one step — remove completed flag from the step we leave."""
-        if self._wizard_current_step <= 0:
-            return
-        # Remove completed flag from the step we are leaving
-        prev_step = self._wizard_current_step - 1
-        if prev_step in self._wizard_completed_steps:
-            self._wizard_completed_steps.remove(prev_step)
-        self._wizard_current_step = prev_step
-        self._update_wizard_ui()
+        dialog = QDialog(self)
+        dialog.setWindowTitle(f"Change Model — {symbol}")
+        dialog.setMinimumWidth(440)
+        layout = QVBoxLayout(dialog)
+        layout.setSpacing(12)
 
-    def _on_wizard_cancel(self) -> None:
-        """Cancel the wizard."""
-        dialog = ConfirmationDialog(
-            title="Cancel Wizard",
-            message=f"Cancel onboarding wizard for {self._wizard_symbol}? Progress will be lost.",
-            confirm_text="Yes, Cancel",
+        msg = QLabel(f"Select a new model for <b>{symbol}</b>:")
+        msg.setWordWrap(True)
+        layout.addWidget(msg)
+
+        if current_model_id:
+            current_label = QLabel(f"Current model: <b>{current_model_id}</b>")
+            current_label.setStyleSheet(f"color: {COLOR_NEUTRAL};")
+            layout.addWidget(current_label)
+
+        model_combo = QComboBox()
+        model_combo.addItem("— No model —", None)
+        for m in models:
+            display = f"{m.model_id} — {m.symbol_origin} (h{m.horizon})"
+            model_combo.addItem(display, m.model_id)
+            # Pre-select current model
+            if m.model_id == current_model_id:
+                model_combo.setCurrentIndex(model_combo.count() - 1)
+        layout.addWidget(model_combo)
+
+        button_box = QDialogButtonBox(QDialogButtonBox.Cancel | QDialogButtonBox.Ok)
+        confirm_btn = button_box.button(QDialogButtonBox.Ok)
+        confirm_btn.setText("Change Model")
+        confirm_btn.setStyleSheet(
+            "background-color: #ffaa00; color: #1e1e1e; font-weight: bold;"
         )
-        if dialog.exec() == ConfirmationDialog.Accepted:
-            self._close_wizard()
+        layout.addWidget(button_box)
 
-    def _close_wizard(self) -> None:
-        """Close the wizard panel."""
-        self._wizard_open = False
-        self._wizard_frame.setVisible(False)
-        self._wizard_symbol = ""
-        self._wizard_current_step = 0
-        self._wizard_completed_steps = []
-        self._refresh_symbols()
+        button_box.accepted.connect(dialog.accept)
+        button_box.rejected.connect(dialog.reject)
 
-    def _on_deactivate(self, symbol: str) -> None:
-        """Deactivate a validated symbol."""
-        dialog = ConfirmationDialog(
-            title="Deactivate Symbol",
-            message=f"Deactivate {symbol}? It will remain registered but inactive.",
-            confirm_text="Deactivate",
-        )
-        if dialog.exec() == ConfirmationDialog.Accepted:
-            cfg = self._bridge.state.get_symbol_config(symbol)
-            if cfg:
-                from paper_trading_v2.shared_app_state_v2 import SymbolConfig
-                self._bridge.state.register_symbol(
-                    symbol,
-                    SymbolConfig(
-                        name=symbol, status="validated",
-                        position_size_multiplier=cfg.position_size_multiplier,
-                        active=False,
-                    ),
+        if dialog.exec() == QDialog.Accepted:
+            new_model_id = model_combo.currentData()
+            if new_model_id == current_model_id:
+                return  # No change
+
+            success = self._bridge.assign_model_to_symbol(symbol, new_model_id)
+            if success:
+                self._bridge.log_action("change_model",
+                                        {"symbol": symbol,
+                                         "old_model": current_model_id,
+                                         "new_model": new_model_id})
+            else:
+                from PySide6.QtWidgets import QMessageBox
+                QMessageBox.warning(
+                    self,
+                    "Change Failed",
+                    f"Could not assign model '{new_model_id}' to {symbol}. "
+                    "The model may not exist in the registry.",
                 )
-            self._bridge.log_action("deactivate_symbol", {"symbol": symbol})
             self._refresh_symbols()
 
     # ------------------------------------------------------------------
@@ -518,3 +485,169 @@ class SymbolOnboardingTab(QWidget):
     def refresh_from_state(self) -> None:
         """Called by the main window timer to refresh symbol data."""
         self._refresh_symbols()
+
+    def _on_activate(self, symbol: str) -> None:
+        """Activate a symbol (requires validated status and model_id)."""
+        cfg = self._bridge.state.get_symbol_config(symbol)
+        if not cfg:
+            return
+
+        if cfg.status != "validated":
+            from PySide6.QtWidgets import QMessageBox
+            QMessageBox.warning(
+                self,
+                "Cannot Activate",
+                f"Symbol '{symbol}' has status '{cfg.status}'. "
+                "Only validated symbols can be activated.",
+            )
+            return
+
+        if not cfg.model_id:
+            from PySide6.QtWidgets import QMessageBox
+            QMessageBox.warning(
+                self,
+                "No Model Assigned",
+                f"Symbol '{symbol}' has no model assigned. "
+                "Use [Change Model] to assign one before activating.",
+            )
+            return
+
+        dialog = ConfirmationDialog(
+            title="Activate Symbol",
+            message=f"Activate {symbol}? It will start receiving signal-engine calls.",
+            confirm_text="Activate",
+        )
+        if dialog.exec() == ConfirmationDialog.Accepted:
+            self._bridge.state.register_symbol(
+                symbol,
+                type(cfg)(
+                    name=cfg.name,
+                    status=cfg.status,
+                    model_id=cfg.model_id,
+                    active=True,
+                    position_size_multiplier=cfg.position_size_multiplier,
+                ),
+            )
+            self._bridge.log_action("activate_symbol", {"symbol": symbol})
+            self._refresh_symbols()
+
+    def _on_deactivate(self, symbol: str) -> None:
+        """Deactivate a symbol with confirmation."""
+        dialog = ConfirmationDialog(
+            title="Deactivate Symbol",
+            message=f"Deactivate {symbol}? It will remain registered but inactive.",
+            confirm_text="Deactivate",
+        )
+        if dialog.exec() == ConfirmationDialog.Accepted:
+            cfg = self._bridge.state.get_symbol_config(symbol)
+            if cfg:
+                self._bridge.state.register_symbol(
+                    symbol,
+                    type(cfg)(
+                        name=cfg.name,
+                        status=cfg.status,
+                        model_id=cfg.model_id,
+                        active=False,
+                        position_size_multiplier=cfg.position_size_multiplier,
+                    ),
+                )
+            self._bridge.log_action("deactivate_symbol", {"symbol": symbol})
+            self._refresh_symbols()
+
+    def _on_reload_registry(self) -> None:
+        """Reload the Model Registry from disk and refresh the table."""
+        n = self._bridge.reload_model_registry()
+        from PySide6.QtWidgets import QMessageBox
+        QMessageBox.information(
+            self,
+            "Model Registry Reloaded",
+            f"Loaded {n} model(s) from configs/models/index.yaml.",
+        )
+        self._refresh_symbols()
+
+    # ------------------------------------------------------------------
+    # Change Status
+    # ------------------------------------------------------------------
+
+    def _on_change_status(self, symbol: str) -> None:
+        """Open a dialog to change the symbol's status."""
+        cfg = self._bridge.state.get_symbol_config(symbol)
+        if not cfg:
+            return
+
+        dialog = QDialog(self)
+        dialog.setWindowTitle(f"Change Status — {symbol}")
+        dialog.setMinimumWidth(350)
+        layout = QVBoxLayout(dialog)
+        layout.setSpacing(12)
+
+        msg = QLabel(f"Select new status for <b>{symbol}</b> (current: <b>{cfg.status}</b>):")
+        msg.setWordWrap(True)
+        layout.addWidget(msg)
+
+        combo = QComboBox()
+        combo.addItems(["validated", "candidate", "rejected"])
+        combo.setCurrentText(cfg.status)
+        layout.addWidget(combo)
+
+        note = QLabel(
+            "Note: Only 'validated' symbols with a model can be activated.\n"
+            "'rejected' symbols cannot be activated."
+        )
+        note.setStyleSheet(f"color: {COLOR_NEUTRAL}; font-size: 11px;")
+        note.setWordWrap(True)
+        layout.addWidget(note)
+
+        button_box = QDialogButtonBox(QDialogButtonBox.Cancel | QDialogButtonBox.Ok)
+        confirm_btn = button_box.button(QDialogButtonBox.Ok)
+        confirm_btn.setText("Change Status")
+        confirm_btn.setStyleSheet(
+            f"background-color: {COLOR_WARNING}; color: #1e1e1e; font-weight: bold;"
+        )
+        layout.addWidget(button_box)
+        button_box.accepted.connect(dialog.accept)
+        button_box.rejected.connect(dialog.reject)
+
+        if dialog.exec() == QDialog.Accepted:
+            new_status = combo.currentText().strip()
+            if new_status == cfg.status:
+                return
+            # If switching away from validated → auto-deactivate
+            new_active = cfg.active if new_status == "validated" else False
+            from paper_trading_v2.shared_app_state_v2 import SymbolConfig
+            self._bridge.state.register_symbol(
+                symbol,
+                SymbolConfig(
+                    name=symbol,
+                    status=new_status,
+                    active=new_active,
+                    model_id=cfg.model_id,
+                    position_size_multiplier=cfg.position_size_multiplier,
+                ),
+            )
+            self._bridge.log_action("change_status",
+                                    {"symbol": symbol,
+                                     "old_status": cfg.status,
+                                     "new_status": new_status})
+            self._refresh_symbols()
+
+    # ------------------------------------------------------------------
+    # Remove Symbol
+    # ------------------------------------------------------------------
+
+    def _on_remove_symbol(self, symbol: str) -> None:
+        """Remove a symbol from the registry with strong confirmation."""
+        dialog = ConfirmationDialog(
+            title="Remove Symbol",
+            message=f"Remove <b>{symbol}</b> from the registry permanently?\n\n"
+                    "This action cannot be undone. The symbol will need to be "
+                    "re-added and re-validated to use it again.",
+            confirm_text="REMOVE",
+            require_input=True,
+            input_match="REMOVE",
+            input_placeholder='Type "REMOVE" to confirm',
+        )
+        if dialog.exec() == ConfirmationDialog.Accepted:
+            self._bridge.state.unregister_symbol(symbol)
+            self._bridge.log_action("remove_symbol", {"symbol": symbol})
+            self._refresh_symbols()

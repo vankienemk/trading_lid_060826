@@ -1,0 +1,51 @@
+# =============================================================================
+# Model Registry Index — Paper Trading V2
+# =============================================================================
+# This file is the single source of truth for all trained models in the
+# Paper Trading V2 system. Each model is registered as a top-level entry
+# keyed by its unique model_id.
+#
+# Only models listed here are available for assignment to symbols via
+# the SystemBridge Model Registry API.
+#
+# References:
+#   - GUI_REWORK_REQUIREMENTS.md Section 2 (Model Registry)
+#   - xauusd-liquidity-sweep/artifacts/models/ (trained artifacts)
+#   - configs/symbols/*.yaml (symbol → model_id binding)
+# =============================================================================
+
+models:
+  xauusd_v2_h16_20260905:
+    model_id: "xauusd_v2_h16_20260905"
+    symbol_origin: "XAUUSD"
+    model_path: "xauusd-liquidity-sweep/artifacts/models/model.pkl"
+    calibrator_path: "xauusd-liquidity-sweep/artifacts/models/calibrator.pkl"
+    feature_schema: "xauusd-liquidity-sweep/artifacts/feature_schemas/features.json"
+    horizon: 16
+    target: "outcome_2r_h16"
+    metrics:
+      pf_oos: 1.305
+      ci_lower: 1.092
+      ci_upper: 1.561
+      n_trades: 312
+    created_at: "2026-09-05"
+    notes: "Pooled OOS meta-analysis V2 — XAUUSD Liquidity Sweep primary model"
+
+  eurusd_v2_h16_20260906:
+    model_id: "eurusd_v2_h16_20260906"
+    symbol_origin: "EURUSD"
+    model_path: "artifacts/eurusd/models/model.pkl"
+    calibrator_path: "artifacts/eurusd/models/calibrator.pkl"
+    feature_schema: "artifacts/eurusd/models/features.json"
+    horizon: 16
+    target: "outcome_2r_h16"
+    metrics:
+      pr_auc: 0.18
+      roc_auc: 0.5924
+      brier: 0.1416
+      accuracy: 0.8333
+      wf_pr_auc_mean: 0.3328
+      wf_roc_auc_mean: 0.6665
+      n_trades: 267
+    created_at: "2026-09-06"
+    notes: "EURUSD Liquidity Sweep V2 — RandomForest + Isotonic, trained on 267 v2 events"

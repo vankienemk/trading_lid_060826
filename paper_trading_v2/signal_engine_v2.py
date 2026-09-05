@@ -42,6 +42,12 @@ from src.scoring.rule_score import compute_rule_scores
 
 logger = logging.getLogger("signal_engine_v2")
 
+# Centralized system logger (GUI_REWORK §5)
+from paper_trading_v2.logger_v2 import log as syslog
+
+# Model Registry access (GUI_REWORK §2)
+from paper_trading_v2.shared_app_state_v2 import ModelRegistry
+
 # Paths
 _PROJECT_ROOT = Path(__file__).resolve().parent
 _SYMBOL_CONFIG_DIR = _PROJECT_ROOT.parent / "configs" / "symbols"
@@ -127,13 +133,29 @@ def _validate_status(symbol_cfg: dict, symbol_name: str = "") -> None:
 # Per-symbol model / calibrator / feature schema loader
 # ---------------------------------------------------------------------------
 
-def _load_symbol_model_and_calibrator(symbol: str) -> tuple:
-    """Load model + calibrator from artifacts/models/{symbol}/ or fallback."""
-    model_dir = _MODELS_BASE / symbol
-    model_path = model_dir / "model.pkl"
-    calibrator_path = model_dir / "calibrator.pkl"
+def _load_symbol_model_and_calibrator(
+    symbol: str,
+    model_path_override: Optional[str] = None,
+    calibrator_path_override: Optional[str] = None,
+) -> tuple:
+    """Load model + calibrator, preferring explicit paths from ModelRegistry.
+
+    When *model_path_override* is given (from ModelInfo._resolved_paths),
+    load from those exact paths.  Otherwise fall back to legacy per-symbol
+    artifacts/models/{symbol}/ directory.
+    """
+    if model_path_override is not None:
+        model_path = Path(model_path_override)
+        calibrator_path = Path(calibrator_path_override) if calibrator_path_override else _MODELS_BASE / symbol / "calibrator.pkl"
+    else:
+        model_dir = _MODELS_BASE / symbol
+        model_path = model_dir / "model.pkl"
+        calibrator_path = model_dir / "calibrator.pkl"
 
     if not model_path.exists():
+        if model_path_override is not None:
+            raise ModelArtifactNotFoundError(
+                f"Model artifact not found at ModelRegistry path: {model_path}")
         fallback = _PIPELINE_V2_MODEL_DIR / "model.pkl"
         if fallback.exists():
             logger.warning("Per-symbol model for %s not found - using fallback %s",
@@ -160,9 +182,17 @@ def _load_symbol_model_and_calibrator(symbol: str) -> tuple:
     return model, calibrator
 
 
-def _load_symbol_feature_schema(symbol: str) -> Optional[dict]:
-    """Load feature schema from artifacts/feature_schemas/{symbol}/features.json."""
-    schema_path = _FEATURE_SCHEMAS_BASE / symbol / "features.json"
+def _load_symbol_feature_schema(symbol: str,
+                                 schema_path_override: Optional[str] = None) -> Optional[dict]:
+    """Load feature schema from explicit path (ModelRegistry) or legacy location.
+
+    When *schema_path_override* is given, load from that exact path.
+    Otherwise try artifacts/feature_schemas/{symbol}/features.json.
+    """
+    if schema_path_override is not None:
+        schema_path = Path(schema_path_override)
+    else:
+        schema_path = _FEATURE_SCHEMAS_BASE / symbol / "features.json"
     if not schema_path.exists():
         return None
     with open(schema_path, "r", encoding="utf-8") as f:
@@ -254,6 +284,13 @@ def _check_new_bar(
     if "volume" not in candles.columns:
         candles["volume"] = 0
 
+    # Log: new bar / candle data received
+    last_close = float(candles["close"].iloc[-1]) if not candles.empty else 0.0
+    last_time = str(candles.index[-1]) if not candles.empty else ""
+    syslog("INFO", "SignalEngine", symbol,
+           f"New M15 candle closed @ {last_close:.2f} → running detection",
+           extra={"last_close": last_close, "candle_time": last_time, "n_candles": len(candles)})
+
     # 2. V2 Sweep detection (per-symbol params)
     sweep_out = detect_sweeps_v2(
         candles,
@@ -266,7 +303,13 @@ def _check_new_bar(
     )
     candidates = _candidate_rows_v2(sweep_out)
     if candidates.empty:
+        syslog("DEBUG", "SignalEngine", symbol, "No sweep found on new candle")
         return []
+
+    n_sweeps = len(candidates)
+    syslog("INFO", "SignalEngine", symbol,
+           f"Sweep detected ({'bullish' if n_sweeps > 0 else 'bearish'}, {n_sweeps} candidate(s)) → scoring",
+           extra={"n_candidates": n_sweeps, "pipeline_params": str(pipeline_params)})
 
     # 3. Deduplicate
     deduped = select_deduplicated_events(
@@ -361,6 +404,16 @@ def _check_new_bar(
                 "level_price": float(ev.get("level_price", 0)),
             },
         ))
+
+    # Log: signal generation summary
+    if results:
+        dir_label = results[0].direction
+        syslog("INFO", "SignalEngine", symbol,
+               f"Signal generated: {len(results)} candidate(s), direction={dir_label}, "
+               f"best score={max(r.combined_score for r in results):.4f}",
+               extra={"n_signals": len(results),
+                      "directions": list(set(r.direction for r in results)),
+                      "scores": [r.combined_score for r in results]})
     return results
 
 
@@ -380,7 +433,9 @@ def create_symbol_engine(
     Flow:
     1. Load per-symbol config from configs/symbols/{symbol}.yaml.
     2. Validate status field (only 'validated' proceeds).
-    3. Load per-symbol model + calibrator.
+    3. Read ``model_id`` from config → look up ModelRegistry → load
+       model.pkl / calibrator.pkl / feature_schema from resolved paths.
+       If model_id is missing or not found → log ERROR and raise.
     4. Extract pipeline parameters.
     5. Return a zero-arg callable ``check_new_bar() -> list[SignalCandidate]``.
 
@@ -426,21 +481,65 @@ def create_symbol_engine(
     _validate_status(symbol_cfg, symbol)
 
     logger.info("Symbol '%s' status=validated — creating engine", symbol)
+    syslog("INFO", "SignalEngine", symbol, "Creating engine — status=validated")
 
-    # --- 3. Load per-symbol model + calibrator ---
+    # --- 3. Read model_id and load via Model Registry ---
+    model_id = symbol_cfg.get("model_id") or symbol_cfg.get("symbol", {}).get("model_id")
     if model_override is not None and calibrator_override is not None:
         model, calibrator = model_override, calibrator_override
+        syslog("INFO", "SignalEngine", symbol, "Using model override (test mode)")
+        feature_schema = None
+    elif model_id:
+        registry = ModelRegistry.get_instance()
+        model_info = registry.get_model(model_id)
+        if model_info is None:
+            msg = f"model_id='{model_id}' not found in Model Registry — skipping symbol"
+            logger.error(msg)
+            syslog("ERROR", "SignalEngine", symbol, msg)
+            raise SymbolNotValidatedError(msg)
+
+        resolved = model_info._resolved_paths
+        model_path_str = resolved.get("model_path", "")
+        calibrator_path_str = resolved.get("calibrator_path", "")
+        schema_path_str = resolved.get("feature_schema", "")
+
+        if not model_path_str or not Path(model_path_str).is_file():
+            msg = f"Model artifact missing for model_id='{model_id}' at {model_path_str} — skipping symbol"
+            logger.error(msg)
+            syslog("ERROR", "SignalEngine", symbol, msg, extra={"model_id": model_id})
+            raise ModelArtifactNotFoundError(msg)
+
+        model, calibrator = _load_symbol_model_and_calibrator(
+            symbol,
+            model_path_override=model_path_str,
+            calibrator_path_override=calibrator_path_str,
+        )
+        feature_schema = _load_symbol_feature_schema(
+            symbol,
+            schema_path_override=schema_path_str if schema_path_str else None,
+        )
+
+        model_ident = getattr(model, "__class__.__name__", str(type(model).__name__))
+        syslog("INFO", "SignalEngine", symbol,
+               f"Model loaded from ModelRegistry — {model_id} ({model_ident})",
+               extra={"model_id": model_id, "model_type": model_ident})
     else:
-        model, calibrator = _load_symbol_model_and_calibrator(symbol)
+        msg = f"No model_id in config and no model override — skipping symbol"
+        logger.error(msg)
+        syslog("ERROR", "SignalEngine", symbol, msg)
+        raise SymbolNotValidatedError(msg)
 
     # --- 4. Extract pipeline parameters ---
     pipeline_params = _extract_pipeline_params(symbol_cfg)
 
-    # --- 5. Load feature schema (optional) ---
-    feature_schema = _load_symbol_feature_schema(symbol)
+    # --- 5. Load feature schema (optional) — skip if already loaded via ModelRegistry ---
+    if feature_schema is None:  # not yet loaded (e.g. test override path)
+        feature_schema = _load_symbol_feature_schema(symbol)
     if feature_schema is not None:
         logger.info("Loaded per-symbol feature schema for %s (%d fields)",
                     symbol, len(feature_schema))
+        syslog("INFO", "SignalEngine", symbol,
+               f"Feature schema loaded ({len(feature_schema)} fields)")
 
     # Per-symbol levels cache (separate from every other symbol)
     levels_cache: dict = {}

@@ -52,6 +52,7 @@ from paper_trading_v2.gui_tab_onboarding import SymbolOnboardingTab
 from paper_trading_v2.gui_tab_live import LiveControlTab
 from paper_trading_v2.gui_tab_performance import PerformanceTab
 from paper_trading_v2.gui_tab_account import AccountTab
+from paper_trading_v2.gui_tab_system_log import SystemLogTab
 
 
 # ---------------------------------------------------------------------------
@@ -59,7 +60,7 @@ from paper_trading_v2.gui_tab_account import AccountTab
 # ---------------------------------------------------------------------------
 
 class MainWindow(QMainWindow):
-    """Main application window with 4 tabs and fixed emergency stop."""
+    """Main application window with 5 tabs and fixed emergency stop."""
 
     def __init__(self, bridge: SystemBridge) -> None:
         super().__init__()
@@ -96,17 +97,19 @@ class MainWindow(QMainWindow):
         self._tabs.setTabPosition(QTabWidget.North)
         self._tabs.setDocumentMode(True)
 
-        # Create the 4 tabs
+        # Create the 5 tabs
         self._tab_onboarding = SymbolOnboardingTab(self._bridge)
         self._tab_live_control = LiveControlTab(self._bridge)
         self._tab_performance = PerformanceTab(self._bridge)
         self._tab_account = AccountTab(self._bridge)
+        self._tab_system_log = SystemLogTab(self._bridge)
 
         # Add tabs with emoji labels (spec section 7.2)
         self._tabs.addTab(self._tab_onboarding, "🔬 Symbol Onboarding")
         self._tabs.addTab(self._tab_live_control, "🎮 Live Control")
         self._tabs.addTab(self._tab_performance, "📈 Performance Monitor")
         self._tabs.addTab(self._tab_account, "🔌 Account & Connection")
+        self._tabs.addTab(self._tab_system_log, "📋 System Log")
 
         layout.addWidget(self._tabs)
 

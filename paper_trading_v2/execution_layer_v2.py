@@ -23,6 +23,7 @@ if _PARENT not in sys.path:
 from mt5_mcp_client import MCPClient, MCPConnectionError, MCPError
 
 from paper_trading_v2 import logger_v2 as paper_logger
+from paper_trading_v2.logger_v2 import log as syslog
 from paper_trading_v2.shared_app_state_v2 import get_state, OpenPosition
 
 DEFAULT_ENDPOINT = os.environ.get("MCP_URL", "http://127.0.0.1:22346/mcp")
@@ -88,11 +89,17 @@ class ExecutionLayer:
     def _reconnect(self) -> None:
         self._close_client()
         self.state.set_mcp_connection_state("reconnecting")
+        syslog("WARNING", "Execution", "", "Reconnecting to MCP...",
+               extra={"endpoint": self.endpoint})
         try:
             self._ensure_session()
             self.state.set_mcp_connection_state("connected")
+            syslog("INFO", "Execution", "", "MCP reconnected successfully",
+                   extra={"endpoint": self.endpoint})
         except (MCPConnectionError, MCPError, ConnectionFailedError):
             self.state.set_mcp_connection_state("disconnected")
+            syslog("ERROR", "Execution", "", "MCP reconnection failed",
+                   extra={"endpoint": self.endpoint})
 
     def _ensure_client(self) -> MCPClient:
         if self._client is None:
@@ -142,6 +149,8 @@ class ExecutionLayer:
             self._ensure_session()
         except ConnectionFailedError:
             self.state.set_mcp_connection_state("disconnected")
+            syslog("ERROR", "Execution", "", f"MCP call '{tool_name}' failed: no session",
+                   extra={"tool": tool_name})
             return {}
 
         client = self._ensure_client()
@@ -152,15 +161,24 @@ class ExecutionLayer:
                 return result
             except (MCPConnectionError, MCPError):
                 if attempt < RETRY_COUNT:
+                    syslog("WARNING", "Execution", "",
+                           f"MCP call '{tool_name}' failed (attempt {attempt+1}/{RETRY_COUNT+1}), retrying...",
+                           extra={"tool": tool_name, "attempt": attempt+1})
                     time.sleep(RETRY_DELAY_SECONDS)
                     self._close_client()
                     try:
                         self._ensure_session()
                     except ConnectionFailedError:
                         self.state.set_mcp_connection_state("disconnected")
+                        syslog("ERROR", "Execution", "",
+                               f"MCP call '{tool_name}' failed after retry — session lost",
+                               extra={"tool": tool_name})
                         return {}
                 else:
                     self.state.set_mcp_connection_state("disconnected")
+                    syslog("ERROR", "Execution", "",
+                           f"MCP call '{tool_name}' failed after {RETRY_COUNT+1} attempts",
+                           extra={"tool": tool_name})
                     return {}
 
     def _position_poll_loop(self) -> None:
@@ -172,6 +190,7 @@ class ExecutionLayer:
                     self._ensure_session()
                     self.get_positions()
                     self.state.set_mcp_connection_state("connected")
+                    syslog("INFO", "Execution", "", "Position poll: reconnected and synced positions")
                 except (ConnectionFailedError, MCPError, MCPConnectionError):
                     pass
 
@@ -348,6 +367,18 @@ class ExecutionLayer:
             )
             _update_sent_time(eid, now_iso)
             self.state.update_mt5_status(connected=True)
+            syslog("INFO", "Execution", asset,
+                   f"Order sent → order_id={eid}, entry={entry_actual:.2f}, SL={stop_loss:.2f}, TP={take_profit:.2f}",
+                   extra={"event_id": eid, "direction": order_type_str,
+                          "entry": entry_actual, "sl": stop_loss, "tp": take_profit,
+                          "volume": volume, "slippage": round(slippage, 2)})
+        else:
+            error_msg = order_result.get("error",
+                         order_result.get("comment", "Unknown error"))
+            syslog("ERROR", "Execution", asset,
+                   f"Order FAILED: {error_msg}",
+                   extra={"event_id": eid, "direction": order_type_str,
+                          "entry": entry_price, "order_result": str(order_result)})
 
         return {"success": order_sent, "event_id": eid,
                 "order_result": order_result, "order_sent": order_sent}
@@ -360,15 +391,28 @@ class ExecutionLayer:
         try:
             result = self._call_mcp("trade_close_single_position", params)
         except ConnectionFailedError as exc:
+            syslog("ERROR", "Execution", symbol or "",
+                   f"Close position {position_id} failed: MCP disconnected",
+                   extra={"position_id": position_id, "error": str(exc)})
             return {"success": False, "error": str(exc),
                     "position_id": position_id}
         if not result:
+            syslog("ERROR", "Execution", symbol or "",
+                   f"Close position {position_id} failed: empty response",
+                   extra={"position_id": position_id})
             return {"success": False, "error": "Empty MCP response",
                     "position_id": position_id}
         order_closed = result.get("success",
                          result.get("retcode", 0) == 10009)
         if order_closed:
             self.get_positions()
+            syslog("INFO", "Execution", symbol or "",
+                   f"Position {position_id} closed successfully",
+                   extra={"position_id": position_id, "symbol": symbol or ""})
+        else:
+            syslog("WARNING", "Execution", symbol or "",
+                   f"Position {position_id} close returned: {result.get('error', 'unknown')}",
+                   extra={"position_id": position_id, "result": str(result)})
         return {"success": order_closed, "position_id": position_id,
                 "result": result}
 
