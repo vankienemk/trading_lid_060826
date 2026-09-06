@@ -15,6 +15,10 @@ Key differences from V1:
   6. **Model Registry** — ``ModelInfo`` dataclass + ``ModelRegistry`` for
      managing trained models from ``configs/models/index.yaml``.
   7. ``SymbolConfig.model_id`` — references a model from the registry.
+  8. **Per-symbol signal statistics** — ``signal_stats`` maps each symbol to
+     its live Trigger / Found / Pass counters (maintained by the
+     ``signal_engine_v2`` scan flow, reset via the GUI, exposed through
+     ``get_snapshot()``).
 """
 
 from __future__ import annotations
@@ -25,6 +29,15 @@ import time
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set
+
+
+# ---------------------------------------------------------------------------
+# Canonical per-symbol config location (single source of truth).
+# Both the Signal Engine (research/configs/symbols/) and the Risk Guard /
+# Execution Layer share this same path so order-sizing params (risk_per_trade_pct,
+# base_multiplier, max/min volume) never diverge between modules.
+# ---------------------------------------------------------------------------
+SYMBOL_CONFIG_DIR = Path(__file__).resolve().parent.parent.parent / "research" / "configs" / "symbols"
 
 
 # ---------------------------------------------------------------------------
@@ -43,6 +56,12 @@ class SymbolConfig:
     active: bool = False
     model_id: Optional[str] = None    # references ModelRegistry (e.g. "xauusd_v2_h16_20260905")
     position_size_multiplier: float = 1.0
+
+
+# Accepted range for a symbol's risk position-size multiplier.  Order sizing
+# uses ``base × multiplier``, so the multiplier must stay positive and bounded.
+MIN_POSITION_SIZE_MULTIPLIER = 0.1
+MAX_POSITION_SIZE_MULTIPLIER = 5.0
 
 
 # ---------------------------------------------------------------------------
@@ -320,6 +339,14 @@ class SharedAppState:
         # When True, ALL signal engines stop immediately.
         self.emergency_stop: bool = False
 
+        # --- Per-symbol signal statistics (Trigger/Found/Pass) ---
+        # Dict[symbol, {"trigger": int, "found": int, "pass": int}].
+        # Maintained by the signal_engine_v2 scan flow: trigger = number of
+        # M15 candle checks run for the symbol, found = sweep patterns the
+        # rule machine detected, pass = signals emitted after the rule-score
+        # + ML model probability round. Updated under _state_lock.
+        self.signal_stats: Dict[str, Dict[str, int]] = {}
+
         # --- Performance cache (recalculated lazily) ---
         self._performance_cache: Dict[str, Dict[str, Any]] = {}
         self._cache_dirty: bool = True
@@ -372,6 +399,7 @@ class SharedAppState:
             self._registered_assets.discard(name)
             self.kill_switch_status.pop(name, None)
             self.automation_levels.pop(name, None)
+            self.signal_stats.pop(name, None)  # drop counters with the engine
 
         if config is not None:
             self.save_registry()
@@ -386,6 +414,35 @@ class SharedAppState:
         """Return the SymbolConfig for a given symbol, or None."""
         with self._state_lock:
             return self.symbol_registry.get(name)
+
+    def set_position_size_multiplier(self, symbol: str, multiplier: float) -> bool:
+        """Set a symbol's risk position-size multiplier and persist it.
+
+        Validates the multiplier is a number within the accepted range
+        ``[MIN_POSITION_SIZE_MULTIPLIER, MAX_POSITION_SIZE_MULTIPLIER]``
+        (0.1 – 5.0).  The value is stored on
+        ``SymbolConfig.position_size_multiplier`` — the field the risk layer
+        serves via ``RiskGuard.get_position_size()`` — and persisted to
+        ``db/symbol_registry.json`` (through ``save_registry()``) so it
+        survives restarts.
+
+        Returns:
+            True on success; False when the symbol is unknown or the
+            multiplier is invalid / out of range (nothing is changed).
+        """
+        try:
+            mult = float(multiplier)
+        except (TypeError, ValueError):
+            return False
+        if not (MIN_POSITION_SIZE_MULTIPLIER <= mult <= MAX_POSITION_SIZE_MULTIPLIER):
+            return False
+        with self._state_lock:
+            cfg = self.symbol_registry.get(symbol)
+            if cfg is None:
+                return False
+            cfg.position_size_multiplier = mult
+        self.save_registry()
+        return True
 
     # ------------------------------------------------------------------
     # Symbol registry persistence (save/load to JSON)
@@ -576,6 +633,86 @@ class SharedAppState:
             self.emergency_stop = active
 
     # ------------------------------------------------------------------
+    # Per-symbol signal statistics (Trigger/Found/Pass)
+    # ------------------------------------------------------------------
+    # Counters are written by the live signal-engine scan flow
+    # (signal_engine_v2._check_new_bar) and read by the GUI snapshot.
+    # They only tally decisions already taken on *closed* bars — nothing in
+    # this section reads or influences future bar data (no lookahead).
+
+    @staticmethod
+    def _empty_signal_stats() -> Dict[str, int]:
+        """Return a fresh all-zero per-symbol stats entry."""
+        return {"trigger": 0, "found": 0, "pass": 0}
+
+    def _get_signal_stats_locked(self, symbol: str) -> Dict[str, int]:
+        """Return (creating if needed) the internal stats entry.
+
+        Caller must hold ``_state_lock``.
+        """
+        entry = self.signal_stats.get(symbol)
+        if entry is None:
+            entry = self._empty_signal_stats()
+            self.signal_stats[symbol] = entry
+        return entry
+
+    def increment_trigger(self, symbol: str, count: int = 1) -> None:
+        """Thread-safe: record ``count`` M15 candle check(s) for ``symbol``.
+
+        The signal engine calls this once per per-symbol scan run — each
+        scan is one M15 candle check/trigger for that symbol.
+        """
+        with self._state_lock:
+            self._get_signal_stats_locked(symbol)["trigger"] += count
+
+    def increment_found(self, symbol: str, count: int = 1) -> None:
+        """Thread-safe: record ``count`` sweep pattern(s) the rule machine
+        detected for ``symbol`` (rule machine filter output)."""
+        with self._state_lock:
+            self._get_signal_stats_locked(symbol)["found"] += count
+
+    def increment_pass(self, symbol: str, count: int = 1) -> None:
+        """Thread-safe: record ``count`` signal(s) that passed the rule-score
+        + ML model probability round for ``symbol`` (signals emitted)."""
+        with self._state_lock:
+            self._get_signal_stats_locked(symbol)["pass"] += count
+
+    def reset_signal_stats(self, symbol: Optional[str] = None) -> None:
+        """Thread-safe: zero the counters for one symbol or for all symbols.
+
+        Args:
+            symbol: When given, only that symbol's counters are reset.
+                    ``None`` (default) resets every symbol.  A symbol that
+                    has never recorded statistics is not created by a reset.
+        """
+        with self._state_lock:
+            if symbol is None:
+                for entry in self.signal_stats.values():
+                    entry["trigger"] = 0
+                    entry["found"] = 0
+                    entry["pass"] = 0
+            else:
+                entry = self.signal_stats.get(symbol)
+                if entry is not None:
+                    entry["trigger"] = 0
+                    entry["found"] = 0
+                    entry["pass"] = 0
+
+    def get_signal_stats(self, symbol: Optional[str] = None) -> Dict[str, Any]:
+        """Thread-safe read of the signal statistics.
+
+        Args:
+            symbol: When given, return that symbol's entry as a copy
+                    (all-zero if nothing recorded yet).  When ``None``,
+                    return every symbol's entry as a dict of copies.
+        """
+        with self._state_lock:
+            if symbol is not None:
+                entry = self.signal_stats.get(symbol)
+                return dict(entry) if entry is not None else self._empty_signal_stats()
+            return {sym: dict(entry) for sym, entry in self.signal_stats.items()}
+
+    # ------------------------------------------------------------------
     # Bulk read (atomic snapshot for GUI)
     # ------------------------------------------------------------------
 
@@ -657,6 +794,14 @@ class SharedAppState:
                 "automation_levels": {
                     asset: al.level
                     for asset, al in self.automation_levels.items()
+                },
+                "signal_stats": {
+                    symbol: {
+                        "trigger": entry["trigger"],
+                        "found": entry["found"],
+                        "pass": entry["pass"],
+                    }
+                    for symbol, entry in self.signal_stats.items()
                 },
                 "emergency_stop": self.emergency_stop,
             }

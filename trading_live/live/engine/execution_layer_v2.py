@@ -8,13 +8,17 @@ position polling during disconnect, and graceful degradation.
 
 from __future__ import annotations
 import json
+import math
 import os
 import sys
 import threading
 import time
 import uuid
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any, Dict, List, Optional
+
+import yaml
 
 _HERE = os.path.dirname(os.path.abspath(__file__))
 _PARENT = os.path.dirname(_HERE)
@@ -24,7 +28,7 @@ from live.mcp.mt5_mcp_client import MCPClient, MCPConnectionError, MCPError
 
 from live.logging import logger_v2 as paper_logger
 from live.logging.logger_v2 import log as syslog
-from live.state.shared_app_state_v2 import get_state, OpenPosition
+from live.state.shared_app_state_v2 import get_state, OpenPosition, SYMBOL_CONFIG_DIR
 
 DEFAULT_ENDPOINT = os.environ.get("MCP_URL", "http://127.0.0.1:22346/mcp")
 DEFAULT_TOKEN = os.environ.get("MCP_TOKEN", "")
@@ -32,6 +36,83 @@ RETRY_COUNT = 1
 RETRY_DELAY_SECONDS = 2.0
 MAGIC_NUMBER = 20791
 POSITION_POLL_INTERVAL_S = 30.0
+
+# ---------------------------------------------------------------------------
+# Risk-based lot sizing constants.
+# ``risk_based_lot`` sizes a position from the account risk budget per trade:
+#     lot = (balance x risk_per_trade_pct x base_multiplier)
+#           / (stop_distance x point_value x contract_size)
+# ``base_multiplier`` is applied BEFORE the lot calc as a risk scalar (never
+# appended after — appending after would silently lower effective risk%).
+# ``point_value`` and ``contract_size`` are per-symbol; both symbols traded
+# here are USD-quoted, so a 1.0-quoted-price move is 1.0 USD per 1 unit of
+# contract.  Values below are the documented hard-code fallback (standard MT5
+# contract specs); if MCP ``symbol_info`` exposes contract/tick data it is
+# preferred and these are only the fallback.
+# ---------------------------------------------------------------------------
+_DOCUMENTED_CONTRACT_SPECS = {
+    # contract_size = units of the base instrument per 1.0 lot
+    # point_value   = USD value of a 1.0-quoted-price move for 1.0 unit
+    "XAUUSD": {"contract_size": 100.0, "point_value": 1.0},     # 100 oz per lot
+    "EURUSD": {"contract_size": 100000.0, "point_value": 1.0},  # 100k units per lot
+}
+_DEFAULT_VOLUME_STEP = 0.01
+_DEFAULT_VOLUME_MIN = 0.01
+# Absolute safety cap: a calculation error can never produce a larger lot than
+# this.  Per-symbol ``max_position_size_lots`` (config) is preferred; this is
+# the hard global ceiling applied on top.
+HARD_MAX_LOT_CAP = 1.0
+
+
+def risk_based_lot(balance: Optional[float], risk_percent: float,
+                   base_multiplier: float, stop_distance: Optional[float],
+                   point_value: float, contract_size: float,
+                   volume_step: float = _DEFAULT_VOLUME_STEP,
+                   volume_min: Optional[float] = _DEFAULT_VOLUME_MIN,
+                   volume_max: Optional[float] = None,
+                   max_lot_cap: Optional[float] = HARD_MAX_LOT_CAP) -> Optional[float]:
+    """Compute a position lot from the account risk budget per trade.
+
+    Semantics (documented):
+      * ``risk_percent`` is the nominal risk % budget for the symbol
+        (config ``risk_per_trade_pct``); ``base_multiplier`` is a per-symbol
+        scalar applied BEFORE the lot calc.  Effective risk% = product.
+      * ``stop_distance`` = |entry_price - stop_price|, sourced once from the
+        Signal Engine and passed in — never recomputed divergently here.
+      * ``point_value * contract_size`` = USD value of a 1.0 price-unit move
+        for 1.0 lot, so ``stop_distance * point_value * contract_size`` is the
+        dollar exposure of 1.0 lot at the stop.
+      * The raw lot is rounded DOWN to ``volume_step`` then clamped to
+        ``[volume_min, volume_max]`` and capped at ``max_lot_cap`` (absolute
+        ceiling).  Rounding DOWN guarantees actual risk <= intended risk.
+    Returns None when inputs are missing/unusable (caller falls back safely).
+    """
+    if not balance or balance <= 0:
+        return None
+    if not stop_distance or stop_distance <= 0:
+        return None
+    if not point_value or point_value <= 0 or not contract_size or contract_size <= 0:
+        return None
+    risk_budget = float(balance) * (float(risk_percent) / 100.0) * float(base_multiplier)
+    stop_value = float(stop_distance) * float(point_value) * float(contract_size)
+    if stop_value <= 0 or risk_budget <= 0:
+        return None
+    lot_raw = risk_budget / stop_value
+    # Round DOWN to the broker volume step (actual risk stays <= intended).
+    try:
+        lot = math.floor(lot_raw / float(volume_step)) * float(volume_step)
+    except (TypeError, ValueError, ZeroDivisionError):
+        lot = lot_raw
+    # Clamp to [volume_min, volume_max].
+    if volume_min is not None:
+        lot = max(lot, float(volume_min))
+    if volume_max is not None:
+        lot = min(lot, float(volume_max))
+    # Hard absolute ceiling.
+    if max_lot_cap is not None:
+        lot = min(lot, float(max_lot_cap))
+    # Normalise float noise (e.g. 0.43000000000000005) to the step grid.
+    return round(lot, 10)
 
 
 def _parse_mcp_response(result: dict) -> dict:

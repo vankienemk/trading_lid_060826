@@ -37,7 +37,12 @@ from src.events.sweep_detector_v2 import detect_sweeps_v2, _candidate_rows_v2, V
 from src.events.confirmation import attach_confirmations, run_anchor_position, run_opposite_extreme_at
 from src.events.deduplication import select_deduplicated_events
 from src.features.feature_pipeline import build_event_features
-from src.features.registry import SIGNAL_FEATURE_NAMES
+from src.features.registry import registered_feature_names
+
+# The research feature registry no longer exports a precomputed
+# SIGNAL_FEATURE_NAMES constant; resolve the ordered feature-name list once
+# at import time (identical contract for model inference below).
+SIGNAL_FEATURE_NAMES = registered_feature_names()
 from src.liquidity.level_registry import build_liquidity_levels
 from src.scoring.rule_score import compute_rule_scores
 
@@ -47,11 +52,14 @@ logger = logging.getLogger("signal_engine_v2")
 from live.logging.logger_v2 import log as syslog
 
 # Model Registry access (GUI_REWORK §2)
-from live.state.shared_app_state_v2 import ModelRegistry
+from live.state.shared_app_state_v2 import ModelRegistry, get_state, SYMBOL_CONFIG_DIR
 
 # Paths — relative to trading_live/ root
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent  # trading_live/
-_SYMBOL_CONFIG_DIR = _PROJECT_ROOT / "research" / "configs" / "symbols"
+# Single-source the per-symbol config location with the Risk Guard and the
+# Execution Layer (canonical constant in shared_app_state_v2) so order-sizing
+# params never diverge between modules.
+_SYMBOL_CONFIG_DIR = SYMBOL_CONFIG_DIR
 _ARTIFACTS_DIR = _PROJECT_ROOT / "artifacts"
 _MODELS_BASE = _ARTIFACTS_DIR / "eurusd" / "models"
 _FEATURE_SCHEMAS_BASE = _RESEARCH / "artifacts" / "feature_schemas"
@@ -242,6 +250,12 @@ def _compute_model_prob(
     if features_df.empty:
         return pd.Series(dtype="float64")
     available = [c for c in SIGNAL_FEATURE_NAMES if c in features_df.columns]
+    # Only registered *numeric* features are part of the model input contract:
+    # the research training step drops categorical registry columns (e.g.
+    # level_type, volatility_regime) before fitting (src.modeling.train).
+    # Mirror that selection here so live inference sees exactly the columns
+    # the model expects and never tries to cast string values to float.
+    available = [c for c in available if pd.api.types.is_numeric_dtype(features_df[c])]
     X = features_df[available].astype("float64").fillna(0.0).values
     try:
         proba = model.predict_proba(X)
@@ -250,6 +264,37 @@ def _compute_model_prob(
     if proba.shape[1] >= 2:
         return pd.Series(proba[:, 1], index=features_df.index)
     return pd.Series(proba[:, 0], index=features_df.index)
+
+
+# ---------------------------------------------------------------------------
+# Signal statistics (live per-symbol Trigger / Found / Pass counters)
+# ---------------------------------------------------------------------------
+
+def _record_signal_stat(symbol: str, stat: str, count: int = 1) -> None:
+    """Thread-safely bump one per-symbol scan statistic and log it at INFO.
+
+    *stat* is one of ``"trigger"`` / ``"found"`` / ``"pass"`` and maps to the
+    matching ``SharedAppState.increment_*`` method.  The counters only tally
+    decisions already taken on **closed** bars inside the per-bar scan —
+    they never read future data and never influence detection/scoring, so
+    no-lookahead and safety behavior is preserved.
+
+    A failure here must never break the live scan flow, hence the guard.
+    """
+    try:
+        state = get_state()
+        getattr(state, f"increment_{stat}")(symbol, count)
+        totals = state.get_signal_stats(symbol)
+        syslog(
+            "INFO", "SignalEngine", symbol,
+            f"Signal stats — {stat} +{count} "
+            f"(trigger={totals['trigger']}, found={totals['found']}, "
+            f"pass={totals['pass']})",
+            extra={"stat": stat, "delta": count, "totals": totals},
+        )
+    except Exception as exc:  # stats instrumentation must never break trading
+        logger.warning("Signal stats update failed for %s (%s): %s",
+                       symbol, stat, exc)
 
 
 # ---------------------------------------------------------------------------
@@ -284,6 +329,18 @@ def _check_new_bar(
     if "volume" not in candles.columns:
         candles["volume"] = 0
 
+    # --- Record the newest closed candle this scan actually processed ---
+    # Polling-layer gating metadata: the signal polling engine reads this
+    # (via the engine closure) so a symbol's engine is only invoked for a
+    # genuinely new closed M15 candle and Trigger counts distinct bars.
+    # The reserved key never collides with per-symbol liquidity levels.
+    levels_cache["__last_processed_bar_time__"] = candles.index[-1]
+
+    # --- Signal statistics: Trigger (one M15 candle check per scan run) ---
+    # Candles are available and about to be scanned — count this M15 candle
+    # check/trigger for the symbol.  Only closed-bar data is used here.
+    _record_signal_stat(symbol, "trigger")
+
     # Log: new bar / candle data received
     last_close = float(candles["close"].iloc[-1]) if not candles.empty else 0.0
     last_time = str(candles.index[-1]) if not candles.empty else ""
@@ -307,6 +364,12 @@ def _check_new_bar(
         return []
 
     n_sweeps = len(candidates)
+
+    # --- Signal statistics: Found (patterns the rule machine detected) ---
+    # detect_sweeps_v2 / _candidate_rows_v2 produced n_sweeps candidate
+    # rows — the rule machine filter output for this scan.
+    _record_signal_stat(symbol, "found", n_sweeps)
+
     syslog("INFO", "SignalEngine", symbol,
            f"Sweep detected ({'bullish' if n_sweeps > 0 else 'bearish'}, {n_sweeps} candidate(s)) → scoring",
            extra={"n_candidates": n_sweeps, "pipeline_params": str(pipeline_params)})
@@ -407,6 +470,11 @@ def _check_new_bar(
 
     # Log: signal generation summary
     if results:
+        # --- Signal statistics: Pass (signals emitted this scan) ---
+        # Every SignalCandidate above survived the rule-score + ML model
+        # probability round and was appended to *results*.
+        _record_signal_stat(symbol, "pass", len(results))
+
         dir_label = results[0].direction
         syslog("INFO", "SignalEngine", symbol,
                f"Signal generated: {len(results)} candidate(s), direction={dir_label}, "
@@ -544,16 +612,47 @@ def create_symbol_engine(
     # Per-symbol levels cache (separate from every other symbol)
     levels_cache: dict = {}
 
-    # --- 6. Return bound closure ---
+    # --- 6. Return bound closure (with M15 new-bar gating metadata) ---
     def check_new_bar() -> list[SignalCandidate]:
         return _check_new_bar(
             symbol, mcp_client, pipeline_params, model, calibrator, levels_cache,
         )
 
-    # Attach metadata for introspection
+    def peek_latest_bar_time():
+        """Return the timestamp of the newest closed M15 candle available for
+        this symbol right now (``None`` when candles are unavailable).
+
+        Fetches chart history exactly like ``_check_new_bar`` but performs NO
+        detection and records NO statistics.  The polling engine calls this
+        once per symbol per cycle to skip unchanged frames between M15 closes,
+        so Trigger counts distinct closed candles and the same event is never
+        re-detected/re-emitted on an unchanged frame.
+        """
+        try:
+            raw = mcp_client.get_chart_history(symbol)
+            if raw is None or (isinstance(raw, pd.DataFrame) and raw.empty):
+                return None
+            df = raw.rename(columns=str.lower).copy()
+            if not isinstance(df.index, pd.DatetimeIndex):
+                df.index = pd.to_datetime(df.index)
+            if not df.index.is_monotonic_increasing:
+                df = df.sort_index()
+            return None if df.empty else df.index[-1]
+        except Exception as exc:  # peek must never break the polling loop
+            logger.warning("Cannot peek latest bar time for %s: %s", symbol, exc)
+            return None
+
+    def get_last_bar_time():
+        """Timestamp of the newest closed candle the last scan processed
+        (``None`` before the first successful scan)."""
+        return levels_cache.get("__last_processed_bar_time__")
+
+    # Attach metadata for introspection / gating
     check_new_bar.symbol = symbol
     check_new_bar.config = symbol_cfg
     check_new_bar.model = model
     check_new_bar.calibrator = calibrator
     check_new_bar.pipeline_params = pipeline_params
+    check_new_bar.peek_latest_bar_time = peek_latest_bar_time
+    check_new_bar.get_last_bar_time = get_last_bar_time
     return check_new_bar

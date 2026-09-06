@@ -15,11 +15,14 @@ import numpy as np
 import yaml
 from live.logging.logger_v2 import get_recent_trades
 from live.logging.logger_v2 import log as syslog
-from live.state.shared_app_state_v2 import get_state, SymbolConfig
+from live.state.shared_app_state_v2 import get_state, SymbolConfig, SYMBOL_CONFIG_DIR
 
 _HERE = Path(__file__).resolve().parent
 _PROJECT_ROOT = _HERE.parent
-_DEFAULT_SYMBOLS_DIR = _PROJECT_ROOT / "configs" / "symbols"
+# Single-source the per-symbol config location with the Signal Engine and the
+# Execution Layer so order-sizing params (risk%, base_multiplier, max/min
+# volume) are read from one canonical directory rather than diverging per module.
+_DEFAULT_SYMBOLS_DIR = SYMBOL_CONFIG_DIR
 
 DEFAULT_MAX_OPEN_PER_ASSET = 1
 DEFAULT_MAX_OPEN_TOTAL = 2
@@ -181,33 +184,43 @@ class RiskGuard:
         if self._state.emergency_stop:
             syslog("ERROR", "RiskGuard", asset, "Signal blocked: global emergency stop active")
             return {"allowed": False, "reason": "Global emergency stop is active"}
+        # ``asset`` is the instrument name as stored in the shared state /
+        # registry and used by MCP (e.g. "XAUUSDm"); ``base`` is only the
+        # risk-config file name ("XAUUSD").  The unknown-asset gate accepts
+        # either form, while every shared-state lookup below keys on the
+        # stored name (asset first, base fallback) so the guard actually
+        # binds to the live kill-switch / position / order-time records
+        # instead of silently missing them for 'm'-suffixed symbols.
         base = asset.rstrip("m") if asset.endswith("m") else asset
-        if base not in self._state.get_registered_symbols():
+        registered = self._state.get_registered_symbols()
+        if asset not in registered and base not in registered:
             syslog("ERROR", "RiskGuard", asset, f"Signal blocked: unknown asset {asset}")
             return {"allowed": False, "reason": f"Unknown asset: {asset}"}
         rg = self._get_risk_guard_config(base)
-        ks = self._state.kill_switch_status.get(base)
+        ks = self._state.kill_switch_status.get(asset) or self._state.kill_switch_status.get(base)
         if ks is not None and ks.active:
-            syslog("WARNING", "RiskGuard", base, f"Signal blocked by kill-switch: {ks.reason}")
+            syslog("WARNING", "RiskGuard", asset, f"Signal blocked by kill-switch: {ks.reason}")
             return {"allowed": False, "reason": ks.reason or "Kill-switch active"}
         mpa = rg.get("max_open_positions", self.max_open_per_asset)
-        if sum(1 for p in current_open_positions if p.get("asset") == base) >= mpa:
-            reason = f"Max open per asset ({mpa}) for {base}"
-            syslog("WARNING", "RiskGuard", base, f"Signal blocked: {reason}")
+        if sum(1 for p in current_open_positions
+               if p.get("asset") in (asset, base)) >= mpa:
+            reason = f"Max open per asset ({mpa}) for {asset}"
+            syslog("WARNING", "RiskGuard", asset, f"Signal blocked: {reason}")
             return {"allowed": False, "reason": reason}
         if len(current_open_positions) >= self.max_open_total:
             reason = f"Max total open ({self.max_open_total})"
-            syslog("WARNING", "RiskGuard", base, f"Signal blocked: {reason}")
+            syslog("WARNING", "RiskGuard", asset, f"Signal blocked: {reason}")
             return {"allowed": False, "reason": reason}
         now = order_sent_time if order_sent_time is not None else time.time()
-        lt = self._last_order_time.get(base, 0.0)
+        lt = self._last_order_time.get(asset, self._last_order_time.get(base, 0.0))
         if now - lt < self.min_interval_since_last_s:
             rem = self.min_interval_since_last_s - (now - lt)
-            reason = f"Min interval {self.min_interval_since_last_s}s for {base} ({rem:.0f}s remaining)"
-            syslog("WARNING", "RiskGuard", base, f"Signal blocked: {reason}")
+            reason = f"Min interval {self.min_interval_since_last_s}s for {asset} ({rem:.0f}s remaining)"
+            syslog("WARNING", "RiskGuard", asset, f"Signal blocked: {reason}")
             return {"allowed": False, "reason": reason}
-        syslog("INFO", "RiskGuard", base, "Signal passed all risk checks",
-               extra={"asset": base, "open_positions": len(current_open_positions)})
+        syslog("INFO", "RiskGuard", asset, "Signal passed all risk checks",
+               extra={"asset": asset, "base": base,
+                      "open_positions": len(current_open_positions)})
         return {"allowed": True, "reason": ""}
 
     def record_order_sent(self, asset: str, timestamp: Optional[float] = None) -> None:

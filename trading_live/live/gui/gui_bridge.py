@@ -98,6 +98,41 @@ class SystemBridge:
         init_db(db_path)
         self.state.set_mcp_connection_state("disconnected")
 
+        # -------------------------------
+        # Background signal engine (GUI-driven)
+        # -------------------------------
+        # The SignalPollingEngine owns one signal-engine closure per
+        # validated+active symbol and runs the per-symbol scans (where the
+        # Trigger/Found/Pass counters increment) on its own daemon thread.
+        # It is created here but only *started* from the GUI timer via
+        # poll_once(), which also keeps symbol registration in sync and
+        # requests an immediate scan every cycle.
+        self._risk_guard: Any = None
+        self._signal_engine: Any = None
+        self._init_signal_engine()
+
+    def _init_signal_engine(self) -> None:
+        """Construct the background signal engine + risk guard (best effort)."""
+        try:
+            from live.engine.signal_polling_engine_v2 import SignalPollingEngine
+            from live.state.risk_guard_v2 import RiskGuard
+
+            self._risk_guard = RiskGuard()
+            interval = int(os.environ.get("SIGNAL_POLL_INTERVAL_S", "30") or 30)
+            self._signal_engine = SignalPollingEngine(
+                self.state,
+                self._exec_layer,
+                self._risk_guard,
+                polling_interval_s=interval,
+            )
+            syslog("INFO", "System", "",
+                   "Signal engine polling controller ready "
+                   f"(interval={interval}s; started by GUI timer)")
+        except Exception as exc:  # never block bridge startup on engine wiring
+            self._signal_engine = None
+            syslog("WARNING", "System", "",
+                   f"Signal engine polling controller unavailable: {exc}")
+
     @classmethod
     def get_instance(cls, config_path: Optional[str] = None) -> "SystemBridge":
         if cls._instance is None:
@@ -330,14 +365,15 @@ class SystemBridge:
             return {"ok": False, "error": "Execution layer not initialized"}
 
         try:
+            order_direction = "buy" if direction.lower() == "buy" else "sell"
             with self._mcp_lock:
-                result = self._exec_layer.place_order(
-                    symbol=asset,
-                    order_type="buy" if direction.lower() == "buy" else "sell",
+                result = self._exec_layer.send_order(
+                    asset=asset,
+                    direction=order_direction,
+                    entry_price=entry_price,
+                    stop_loss=stop_loss,
+                    take_profit=take_profit,
                     volume=lot_size,
-                    price=entry_price,
-                    sl=stop_loss,
-                    tp=take_profit,
                 )
             _log("send_order", {"asset": asset, "direction": direction, "result": str(result)})
             syslog("INFO", "Execution", asset,
@@ -423,6 +459,42 @@ class SystemBridge:
             self.state.update_mt5_status(connected=False)
 
         return self.state.get_snapshot()
+
+    # ------------------------------------------------------------------
+    # Signal engine poll (GUI timer hook)
+    # ------------------------------------------------------------------
+
+    def poll_once(self) -> None:
+        """GUI timer hook — run one signal-engine poll cycle.
+
+        Called by the main window on every refresh tick:
+
+        * keeps the background SignalPollingEngine running (started on
+          demand, restarted after an emergency stop is released);
+        * requests an immediate scan.
+
+        Symbol registration/refresh happens on the engine's own thread every
+        cycle (symbols are picked up / dropped the moment the user validates /
+        activates / deactivates them).  All scanning *and* model loading
+        therefore execute on the engine daemon thread — this method never
+        blocks the GUI thread on MCP calls, detection or artifact loading.
+        An active emergency stop wakes the engine so it halts cleanly instead
+        of scanning.
+        """
+        engine = self._signal_engine
+        if engine is None:
+            return
+        try:
+            if self.state.emergency_stop:
+                # Wake the loop so it observes the emergency stop and halts.
+                engine.request_scan()
+                return
+            if not engine.is_running:
+                engine.start()
+                syslog("INFO", "System", "", "Signal engine polling started by GUI timer")
+            engine.request_scan()
+        except Exception as exc:  # polling must never break the GUI refresh
+            syslog("WARNING", "System", "", f"Signal engine poll failed: {exc}")
 
     # ------------------------------------------------------------------
     # Signal / Risk / Kill-Switch
@@ -574,9 +646,21 @@ class SystemBridge:
     # ------------------------------------------------------------------
 
     def shutdown(self) -> None:
-        """Clean shutdown: close MCP connection, stop polling."""
+        """Clean shutdown: stop the signal engine, close MCP, stop polling."""
         self._running = False
+        if self._signal_engine is not None:
+            try:
+                self._signal_engine.stop()
+                syslog("INFO", "System", "", "Signal engine polling stopped during shutdown")
+            except Exception:
+                pass
         if self._exec_layer is not None:
+            try:
+                stop_polling = getattr(self._exec_layer, "stop_polling", None)
+                if stop_polling is not None:
+                    stop_polling()
+            except Exception:
+                pass
             try:
                 self._exec_layer.close()
                 syslog("INFO", "MCP", "", "MCP execution layer closed during shutdown")

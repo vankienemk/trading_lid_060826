@@ -1,0 +1,999 @@
+{
+  "name": "lot-stop-entry-verification",
+  "id": "lot-stop-entry-verification",
+  "description": "Execute the 3 independent verification/analysis work items in 'verification tasks lot stop entry.md' (A: Lot-size formula audit — read-only technical check with hand-calculable table; B: pre-registered Stop-Buffer-by-regime A/B test with 2 charts; C: descriptive Entry-Timing survey with 1 chart), each produced as a dated report under trading_live/research/xauusd-liquidity-sweep/reports/, strictly following the spec's output formats, common reporting standards, and the 'no reusing burned data to tune params' principle. Priority A→B→C; the three are independent.",
+  "captainSessionId": "session-798818f7-8eb3-4eec-b69f-c4044aab8b32",
+  "createdAt": 1788682744600,
+  "members": [
+    {
+      "id": "550af168-4358-48e5-a4bb-b6c2d36c280e",
+      "name": "audit_analyst",
+      "role": "Analyst/Auditor — Task A: lot-size formula audit (read-only code verification + hand-calc table)",
+      "provider": "deepseek-official",
+      "model": "deepseek-v4-flash-vision-exp",
+      "reasoningEffort": "high",
+      "executionPrompt": "Read-only. You audit the lot-size/risk code in trading_live/live/ (engine/, state/, mcp/) — you do NOT modify any live code. You answer the spec's 6 questions with concrete code path:line quotes, and produce a hand-calculable example table (XAUUSD + EURUSD) so the reader can verify the math in 30s without reading code.",
+      "joinedAt": 1788682754425,
+      "status": "working"
+    },
+    {
+      "id": "9dd1f258-4533-48fa-9e6b-a3e914fe7371",
+      "name": "ab_analyst",
+      "role": "Researcher — Task B: pre-registered Stop-Buffer-by-regime A/B test (data experiment)",
+      "provider": "deepseek-official",
+      "model": "deepseek-v4-flash-vision-exp",
+      "reasoningEffort": "high",
+      "executionPrompt": "Data experiment on the frozen 974-event pool (pipeline_v2/data/labeled_events_v2.parquet). Pre-register the variants BEFORE running, do not add/remove variants after seeing results, and flag the frozen-974 relabel as a PROVISIONAL estimate (not final confirmation) because paper-trading data is insufficient. Produce report + 2 PNG charts.",
+      "joinedAt": 1788682754433,
+      "status": "working"
+    },
+    {
+      "id": "64175318-400d-4d5d-a705-975840d688e9",
+      "name": "entry_analyst",
+      "role": "Researcher — Task C: descriptive Entry-Timing survey (no model training)",
+      "provider": "deepseek-official",
+      "model": "deepseek-v4-flash-vision-exp",
+      "reasoningEffort": "high",
+      "executionPrompt": "Descriptive statistics only on the frozen 974-event pool. NO model training, NO parameter tuning, and DO NOT change live entry logic in signal_engine_v2.py regardless of results. Compare hypothetical entries A (pullback) and B (wait one more bar) vs the real entry baseline, produce report + 1 grouped-bar PNG.",
+      "joinedAt": 1788682754441,
+      "status": "idle"
+    },
+    {
+      "id": "80b35889-2ce8-4cd8-a93b-3601124e0697",
+      "name": "qa_reviewer",
+      "role": "Reviewer/QA — verify all 3 reports against the spec's formats and common standards",
+      "provider": "deepseek-official",
+      "model": "deepseek-v4-flash-vision-exp",
+      "reasoningEffort": "high",
+      "executionPrompt": "Review each of the 3 reports strictly against the spec's mandatory output format, the common reporting standards (dated filename, bold conclusion first, CI 95% columns, separate PNG referenced by name, threshold reference line, Pre-registered criteria for experiments), and the no-data-leakage principle. Verdict >= needs_revision with concrete findings if anything is missing/wrong.",
+      "joinedAt": 1788682754450,
+      "status": "working"
+    }
+  ],
+  "tasks": [
+    {
+      "id": "t1",
+      "subject": "Task A — Lot-sizing formula audit (read-only technical check)",
+      "description": "Audit the live lot-size formula, producing report `trading_live/research/xauusd-liquidity-sweep/reports/audit/lot_sizing_audit_YYYYMMDD.md` (use the current run date for YYYYMMDD; never overwrite an older dated report). This is a TRUE/FALSE verification of the current formula, NOT an optimization task.\n\nAnswer all 6 checklist questions from the spec, each with a concrete `code path:line` quote:\n1. Current lot formula — quote the actual computation block.\n2. Where `stop_distance` for lot sizing comes from — is it exactly `|entry_price - stop_price|` already computed in the Signal Engine, or re-computed a second time in the Execution Layer (risk of divergence)?\n3. Point value / contract size — fetched per-symbol from MCP `symbol_info` or hard-coded? If hard-coded, list the values used for XAUUSD and EURUSD.\n4. Where `size_multiplier` (1.0 XAUUSD / 0.5 EURUSD) is applied — BEFORE lot calc (correct scaling) or AFTER (reduces effective risk%)? Confirm whether that matches the intended design.\n5. Whether the final lot is rounded to broker `volume_step`/`volume_min`/`volume_max` read from MCP, and whether it rounds UP or DOWN (round-up makes actual risk >= intended).\n6. Whether any absolute max-lot cap exists to prevent a calculation error from producing a huge unintended order.\n\nThen produce the mandatory hand-calculable example table (XAUUSD Balance 10,000 Risk 1% Entry 2650.50 Stop 2648.20, and EURUSD 10,000 Risk 1% x0.5 multiplier) with columns: Symbol | Balance | Risk% | Entry | Stop | Stop distance | Lot (pre-round) | Lot (final) | Actual risk ($) | Actual risk (%). This table is the single most important artifact — the reader will re-check it with a calculator.\n\nEnd with the conclusion section containing both checkboxes: \"Không phát hiện bug\" and \"Phát hiện bug — mô tả cụ thể, mức độ ảnh hưởng\".\n\nRelevant code locations (read-only): trading_live/live/engine/execution_layer_v2.py, trading_live/live/engine/signal_engine_v2.py, trading_live/live/state/risk_guard_v2.py, trading_live/live/state/shared_app_state_v2.py (position_size_multiplier), trading_live/live/mcp/mt5_mcp_client.py (get_symbol_info).",
+      "status": "completed",
+      "assignee": "audit_analyst",
+      "dependencies": [],
+      "attempt": 1,
+      "createdAt": 1788682797561,
+      "updatedAt": 1788683665520,
+      "kind": "implementation",
+      "objective": "Produce a technical audit verifying whether the live lot-size formula is correct (a correctness check, not an optimization). Confirm with source path:line quotes how stop_distance, point value/contract size, size_multiplier, volume rounding, and any max-lot cap are handled, and include a hand-calculable example table so the reader can verify the math in ~30 seconds without reading code.",
+      "inScope": [
+        "trading_live/research/xauusd-liquidity-sweep/reports/audit/"
+      ],
+      "outOfScope": [
+        "trading_live/live/engine/",
+        "trading_live/live/state/",
+        "trading_live/live/mcp/",
+        "trading_live/live/gui/",
+        "trading_live/research/xauusd-liquidity-sweep/pipeline_v2/data/",
+        "trading_live/research/xauusd-liquidity-sweep/configs/"
+      ],
+      "acceptance": [
+        "All 6 checklist questions answered, each with a concrete code path:line quote (no claims without a source reference).",
+        "Hand-calculable example table present with XAUUSD (Balance 10,000, Risk% 1, Entry 2650.50, Stop 2648.20) and EURUSD (10,000, 1% x0.5 multiplier) rows, all 10 required columns, and arithmetic the reader can re-verify by hand.",
+        "Where point value/contract size is hard-coded, the exact XAUUSD and EURUSD values used are listed.",
+        "The stop_distance source is identified precisely (Signal Engine value vs Execution Layer recomputation).",
+        "The size_multiplier application point (before vs after lot calc) is stated and its design intent confirmed.",
+        "Lot rounding direction (up/down) and whether broker volume_min/step/max from MCP are applied are stated.",
+        "Whether an absolute max-lot cap exists is stated.",
+        "Conclusion section ends with both checkboxes (no bug / bug found with specific impact).",
+        "No live code file under trading_live/live/ was modified (outOfScope respected)."
+      ],
+      "verify": [
+        "test -s trading_live/research/xauusd-liquidity-sweep/reports/audit/lot_sizing_audit_* && echo AUDIT_REPORT_OK",
+        "grep -q 'stop_distance' trading_live/research/xauusd-liquidity-sweep/reports/audit/lot_sizing_audit_* && echo AUDIT_STOP_DISTANCE_OK",
+        "grep -q 'XAUUSD' trading_live/research/xauusd-liquidity-sweep/reports/audit/lot_sizing_audit_* && grep -q 'EURUSD' trading_live/research/xauusd-liquidity-sweep/reports/audit/lot_sizing_audit_* && echo AUDIT_TABLE_OK"
+      ],
+      "deliverables": [
+        "trading_live/research/xauusd-liquidity-sweep/reports/audit/lot_sizing_audit_YYYYMMDD.md"
+      ],
+      "nonGoals": [
+        "No optimization or improvement recommendation for the lot formula — only TRUE/FALSE verification.",
+        "No modification to any live code file.",
+        "No use of new market data."
+      ],
+      "attemptId": "dc85170e-28e2-4799-a25d-c4963a0822e5",
+      "reassigning": false,
+      "output": "Task A — Lot-size formula audit COMPLETE. Report: trading_live/research/xauusd-liquidity-sweep/reports/audit/lot_sizing_audit_20260906.md\n\nCORE FINDING: There is NO risk-based lot-size formula in trading_live/live/. Automated orders always send a fixed volume=0.01 (execution_layer_v2.py:307 default; signal_polling_engine_v2.py:572-583 passes no volume). All position_sizing config fields (risk_per_trade_pct=1%/0.5%, base_multiplier=1.0/0.5, max/min_position_size_lots) are declared in configs/symbols/{XAUUSD,EURUSD}.yaml but NOT wired into order sizing — dead config for the live order path.\n\n6 answers w/ path:line: (1) no formula, lot=0.01 constant; (2) stop_distance computed once in Signal Engine (signal_engine_v2.py:432-437), used only for target, not recomputed in Execution Layer -> no double-compute; (3) no contract size read/hard-coded (get_symbol_info pass-through execution_layer_v2.py:263-264); only YAML digits/lot_size/risk%/multiplier; (4) size_multiplier never applied to any lot (risk_guard_v2.py:112-115,166-170); (5) no volume rounding (volume raw to MCP, execution_layer_v2.py:347); max/min lots dead config; (6) no absolute max-lot cap. SIDE FINDING: manual GUI send broken — gui_bridge.send_order calls _exec_layer.place_order (gui_bridge.py:369) which does not exist on ExecutionLayer (AttributeError swallowed).\n\nHand-calc (Balance $10k): actual risk ~$2.30 (XAU) / $2.00 (EUR) = ~0.023%/0.020% vs intended 1%/0.5% -> ~43x/25x smaller. If formula wired: XAU lot 0.43 (risk $98.90=0.989%), EUR lot 0.25 (risk $50=0.500%). Verdict: BUG FOUND (intended risk-based lot sizing NOT implemented; risk-per-trade not controlled). Read-only audit, no live code modified.",
+      "changedPaths": [
+        "trading_live/research/xauusd-liquidity-sweep/reports/audit/lot_sizing_audit_20260906.md"
+      ],
+      "acceptanceResults": [
+        {
+          "criterion": "All 6 checklist questions answered, each with a concrete code path:line quote",
+          "status": "passed",
+          "evidence": "Q1-Q6 in report each cite path:line (execution_layer_v2.py:307,346-354,263-264; signal_polling_engine_v2.py:572-583; signal_engine_v2.py:432-437; risk_guard_v2.py:112-115,166-170; gui_bridge.py:358,369,383-388)."
+        },
+        {
+          "criterion": "Hand-calculable table with XAUUSD (10,000/1%/2650.50/2648.20) and EURUSD (10,000/1%x0.5) rows, all 10 required columns",
+          "status": "passed",
+          "evidence": "Table 1 reproduces spec's 10 columns exactly (Symbol|Balance|Risk%|Entry|Stop|Stop distance|Lot pre-round|Lot final|Risk $|Risk %). XAUUSD lot 0.43478->0.43, risk $98.90=0.989%; EURUSD (1%x0.5) lot 0.25, risk $50=0.500%. Step-by-step arithmetic shown for 30s hand verification."
+        },
+        {
+          "criterion": "Where point value/contract size is hard-coded, exact XAUUSD and EURUSD values listed",
+          "status": "passed",
+          "evidence": "Report states NO contract size is read or hard-coded (get_symbol_info is MCX pass-through). Lists per-symbol numeric config from configs/symbols/*.yaml (digits=5, lot_size=0.01, risk_per_trade_pct, base_multiplier, max/min lots)."
+        },
+        {
+          "criterion": "stop_distance source identified precisely (Signal Engine vs Execution Layer recomputation)",
+          "status": "passed",
+          "evidence": "Q2: stop_distance computed once in Signal Engine (signal_engine_v2.py:432-437) for target_price; passed as cand.stop_price->send_order(stop_loss=...)->MCP 'sl'; NOT recomputed in Execution Layer, NOT used for any lot calc."
+        },
+        {
+          "criterion": "size_multiplier application point (before vs after) stated and design intent confirmed",
+          "status": "passed",
+          "evidence": "Q4: base_multiplier loaded to position_size_multiplier (risk_guard_v2.py:112-115,166-170) but never applied to any lot; neither before nor after (inert for live sizing). Notes multiply-before==multiply-after (commutative), so no practical difference."
+        },
+        {
+          "criterion": "Lot rounding direction (up/down) and whether broker volume_min/step/max from MCP applied",
+          "status": "passed",
+          "evidence": "Q5: client does not read/normalize/round volume; volume passed raw to MCP (execution_layer_v2.py:347). max/min_position_size_lots dead config (no .py references). No client-side round-up/down; MT5 handles step server-side."
+        },
+        {
+          "criterion": "Whether an absolute max-lot cap exists is stated",
+          "status": "passed",
+          "evidence": "Q6: no client cap; max_position_size_lots never read. Safe only because auto path sends fixed 0.01; if a risk formula were added there is no absolute max-lot lock."
+        },
+        {
+          "criterion": "Conclusion ends with both checkboxes (no bug / bug found with specific impact)",
+          "status": "passed",
+          "evidence": "Conclusion has '[x] Phát hiện bug / thiếu triển khai' with 4 specific findings + impact arithmetic (actual risk ~2.3%/4.0% of declared budget, ~43x/25x smaller), and '[ ] Không phát hiện bug'."
+        },
+        {
+          "criterion": "No live code file under trading_live/live/ was modified (outOfScope respected)",
+          "status": "passed",
+          "evidence": "Only new file created: trading_live/research/xauusd-liquidity-sweep/reports/audit/lot_sizing_audit_20260906.md (within inScope reports/audit/). No live engine/state/mcp/gui file edited by this task."
+        }
+      ],
+      "commandsRun": [
+        {
+          "command": "test -s trading_live/research/xauusd-liquidity-sweep/reports/audit/lot_sizing_audit_* && echo AUDIT_REPORT_OK",
+          "status": "passed",
+          "exitCode": 0,
+          "evidence": "AUDIT_REPORT_OK"
+        },
+        {
+          "command": "grep -q 'stop_distance' trading_live/research/xauusd-liquidity-sweep/reports/audit/lot_sizing_audit_* && echo AUDIT_STOP_DISTANCE_OK",
+          "status": "passed",
+          "exitCode": 0,
+          "evidence": "AUDIT_STOP_DISTANCE_OK"
+        },
+        {
+          "command": "grep -q 'XAUUSD' trading_live/research/xauusd-liquidity-sweep/reports/audit/lot_sizing_audit_* && grep -q 'EURUSD' trading_live/research/xauusd-liquidity-sweep/reports/audit/lot_sizing_audit_* && echo AUDIT_TABLE_OK",
+          "status": "passed",
+          "exitCode": 0,
+          "evidence": "AUDIT_TABLE_OK"
+        }
+      ]
+    },
+    {
+      "id": "t3",
+      "subject": "Task B — Pre-registered Stop-Buffer-by-regime A/B test",
+      "description": "Run the pre-registered A/B test on the frozen 974-event pool (trading_live/research/xauusd-liquidity-sweep/pipeline_v2/data/labeled_events_v2.parquet). Output report `trading_live/research/xauusd-liquidity-sweep/reports/experiments/stop_buffer_regime_ab_YYYYMMDD.md` (current run date) + 2 PNG in the SAME experiments/ dir: `stop_buffer_pf_comparison.png` and `stop_buffer_mae_distribution.png`.\n\nPre-register BEFORE running and do not add/remove variants after seeing results:\n| Variant | stop_buffer_atr by regime (low/normal/high) |\n| Control | 0.10 / 0.10 / 0.10 |\n| Variant 1 | 0.15 / 0.10 / 0.08 |\n| Variant 2 | 0.20 / 0.10 / 0.08 |\n\nPre-registered success criteria (state them, do not change after seeing numbers): expectancy net OOS improves > +0.05R vs control AND Wilson/bootstrap 95% CI of PF does not contain control PF AND n >= 30 per variant.\n\nData rule: do NOT reuse XAUUSD-OOS / EURUSD-Full for tuning. If paper-trading data is insufficient, use the relabel-on-frozen-974 fallback with walk-forward evaluation ONLY to estimate, and clearly state in the report this is a provisional estimate, NOT final confirmation.\n\nRequired report contents:\n- Bold one-line conclusion at the TOP of the file (before the results table): 'Variant X đạt tiêu chí thành công đã pre-register' OR 'KHÔNG biến thể nào đạt tiêu chí — giữ nguyên control'. Keep interpretation minimal before the conclusion line.\n- 'Pre-registered criteria' section immediately after the conclusion.\n- Main results table: Biến thể | n | PF | PF CI95 | Avg net R | Breakeven cost | Stop rate | Time rate | Target rate (Control / Variant 1 / Variant 2).\n- stop_buffer_pf_comparison.png: bar chart of the 3 variants' PF with 95% CI error bars and a horizontal reference line at PF=1.0.\n- stop_buffer_mae_distribution.png: histogram/boxplot of losing-trade MAE_R distribution, control vs the best variant, side-by-side, to show whether widening the buffer reduces pierces near the old threshold.\n- Reference the PNG filenames directly in the report (no base64 embedding, no verbal-only description).\n\nRelevant helpers: trading_live/research/xauusd-liquidity-sweep/src/labeling/triple_barrier.py (compute_trade_levels, stop_buffer_atr), src/labeling/outcome_builder.py, and the existing analysis in reports/analysis/stop_buffer_regime.md. Add the helper analysis script at pipeline_v2/scripts/analysis/stop_buffer_regime_ab.py if needed. Run with the repo venv: cd trading_live/research/xauusd-liquidity-sweep && .venv/bin/python <script>.",
+      "status": "completed",
+      "assignee": "ab_analyst",
+      "dependencies": [],
+      "attempt": 1,
+      "createdAt": 1788682864258,
+      "updatedAt": 1788684286657,
+      "kind": "implementation",
+      "objective": "Run the pre-registered A/B test comparing a fixed stop_buffer_atr=0.10 (control) vs two regime-adaptive variants (V1 0.15/0.10/0.08; V2 0.20/0.10/0.08) on the frozen 974-event pool, and report net effect on pooled expectancy/PF with the required charts. Because paper-trading data is insufficient, relabel the frozen 974 pool with the 3 buffers and evaluate walk-forward as a PROVISIONAL estimate only — this must be explicitly flagged as not a final confirmation.",
+      "inScope": [
+        "trading_live/research/xauusd-liquidity-sweep/reports/experiments/",
+        "trading_live/research/xauusd-liquidity-sweep/pipeline_v2/scripts/analysis/stop_buffer_regime_ab.py"
+      ],
+      "acceptance": [
+        "The 3 variants are exactly as pre-registered (Control 0.10/0.10/0.10, V1 0.15/0.10/0.08, V2 0.20/0.10/0.08) with no post-hoc additions/removals.",
+        "Pre-registered success criteria are stated in the report (expectancy net OOS > +0.05R vs control AND Wilson/bootstrap PF 95% CI excludes control PF AND n>=30 per variant).",
+        "Bold one-line conclusion appears at the TOP of the file, in one of the two prescribed forms.",
+        "'Pre-registered criteria' section appears immediately after the conclusion line.",
+        "Main results table has all 8 required columns (n, PF, PF CI95, Avg net R, Breakeven cost, Stop rate, Time rate, Target rate) for all 3 variants.",
+        "stop_buffer_pf_comparison.png exists and shows PF bars + 95% CI error bars + horizontal PF=1.0 reference line; referenced by filename in the report.",
+        "stop_buffer_mae_distribution.png exists and shows control vs best-variant losing-trade MAE_R side-by-side; referenced by filename in the report.",
+        "Report explicitly states the result is a provisional estimate on the frozen 974 pool, not a final confirmation.",
+        "No frozen data (pipeline_v2/data) or v2_frozen.yaml was modified; no live engine/state code changed."
+      ],
+      "verify": [
+        "test -s trading_live/research/xauusd-liquidity-sweep/reports/experiments/stop_buffer_regime_ab_* && echo AB_MD_OK",
+        "test -s trading_live/research/xauusd-liquidity-sweep/reports/experiments/stop_buffer_pf_comparison.png && echo AB_PFCHART_OK",
+        "test -s trading_live/research/xauusd-liquidity-sweep/reports/experiments/stop_buffer_mae_distribution.png && echo AB_MAECHART_OK"
+      ],
+      "deliverables": [
+        "trading_live/research/xauusd-liquidity-sweep/reports/experiments/stop_buffer_regime_ab_YYYYMMDD.md",
+        "trading_live/research/xauusd-liquidity-sweep/reports/experiments/stop_buffer_pf_comparison.png",
+        "trading_live/research/xauusd-liquidity-sweep/reports/experiments/stop_buffer_mae_distribution.png"
+      ],
+      "nonGoals": [
+        "No selection of new live parameters from this result — the frozen-974 relabel is only a provisional estimate.",
+        "Do not change stop_buffer_atr in any live config or engine file.",
+        "Do not modify the frozen parquet dataset or v2_frozen.yaml."
+      ],
+      "attemptId": "dff05246-61ab-4e55-8cdf-a7d99323b8b3",
+      "reassigning": false,
+      "output": "Task B (Pre-registered Stop-Buffer-by-Regime A/B) COMPLETED.\n\nCONCLUSION: NO variant met the pre-registered criteria → keep Control (0.10/0.10/0.10).\nMain table (pooled, pre-cost, frozen 974):\nControl   n=973 PF=1.0279 CI[0.8923,1.1831] avg=+0.0140R stop46.0% time35.8% tgt18.2%\nVariant 1 n=973 PF=1.0250 CI[0.8906,1.1791] avg=+0.0126R stop46.0% time36.0% tgt18.0%\nVariant 2 n=973 PF=1.0317 CI[0.8954,1.1863] avg=+0.0158R stop45.6% time36.6% tgt17.8%\n\nCriteria: C1 Δexpectancy>0.05R → V1 −0.0014R, V2 +0.0018R FAIL; C2 PF-CI excludes control PF(1.0279) → both contain it FAIL; C3 n≥30 → PASS (973). 0/2 variants achieved.\n\nKey finding: prior p=5.3e-9 \"widen low-regime buffer\" effect is real but tiny (low-regime loser median MAE_R 1.874→1.789; losers 230→226) and does NOT translate to whole-pool expectancy. 5-fold time walk-forward shows no consistent variant win (worse folds 1&4; ~flat elsewhere). Control re-sim reproduces frozen 974/974 on outcome_2r_h16 + exit_reason + gross_result_r (validated). Control anchor matches frozen (PF 1.0279, avg +0.014R, n_net 973).\n\nPROVISIONAL: relabel of frozen 974 (XAUUSD 2022-06→2026-08, non-burned window) is a provisional estimator ONLY — paper-trading insufficient; NOT final confirmation. Variants + criteria fixed before running; no baked/tuned params; no frozen data or live engine/state modified.\n\nDeliverables: reports/experiments/stop_buffer_regime_ab_20260906.md + stop_buffer_pf_comparison.png + stop_buffer_mae_distribution.png (+ .json + per-event parquet). Helper: pipeline_v2/scripts/analysis/stop_buffer_regime_ab.py.",
+      "changedPaths": [
+        "trading_live/research/xauusd-liquidity-sweep/reports/experiments/stop_buffer_regime_ab_20260906.md",
+        "trading_live/research/xauusd-liquidity-sweep/reports/experiments/stop_buffer_pf_comparison.png",
+        "trading_live/research/xauusd-liquidity-sweep/reports/experiments/stop_buffer_mae_distribution.png",
+        "trading_live/research/xauusd-liquidity-sweep/reports/experiments/stop_buffer_regime_ab_20260906.json",
+        "trading_live/research/xauusd-liquidity-sweep/reports/experiments/stop_buffer_regime_ab_20260906_events.parquet",
+        "trading_live/research/xauusd-liquidity-sweep/pipeline_v2/scripts/analysis/stop_buffer_regime_ab.py"
+      ],
+      "acceptanceResults": [
+        {
+          "criterion": "The 3 variants are exactly as pre-registered (Control 0.10/0.10/0.10, V1 0.15/0.10/0.08, V2 0.20/0.10/0.08) with no post-hoc additions/removals.",
+          "status": "passed",
+          "evidence": "VARIANTS fixed in pipeline_v2/scripts/analysis/stop_buffer_regime_ab.py; buffers {low,normal,high} exactly per spec; reported as fixed pre-registration in report."
+        },
+        {
+          "criterion": "Pre-registered success criteria are stated in the report (expectancy net OOS > +0.05R vs control AND Wilson/bootstrap PF 95% CI excludes control PF AND n>=30 per variant).",
+          "status": "passed",
+          "evidence": "Report '## Pre-registered criteria' section lists C1 (Δ expectancy > +0.05R), C2 (PF 95% CI excludes control PF), C3 (n>=30)."
+        },
+        {
+          "criterion": "Bold one-line conclusion appears at the TOP of the file, in one of the two prescribed forms.",
+          "status": "passed",
+          "evidence": "Line 3: '> **KẾT LUẬN: KHÔNG biến thể nào đạt tiêu chí thành công đã pre-register — giữ nguyên Control (0.10 / 0.10 / 0.10).**' — the prescribed 'KHÔNG biến thể nào...' form, before the table."
+        },
+        {
+          "criterion": "'Pre-registered criteria' section appears immediately after the conclusion line.",
+          "status": "passed",
+          "evidence": "'## Pre-registered criteria' is the first section after the bold conclusion."
+        },
+        {
+          "criterion": "Main results table has all 8 required columns (n, PF, PF CI95, Avg net R, Breakeven cost, Stop rate, Time rate, Target rate) for all 3 variants.",
+          "status": "passed",
+          "evidence": "Table row: 'Biến thể | n | PF | PF CI95 | Avg net R | Breakeven cost | Stop rate | Time rate | Target rate' with all 3 variants (Control 973/1.0279/... /Variant 1 /Variant 2)."
+        },
+        {
+          "criterion": "stop_buffer_pf_comparison.png exists and shows PF bars + 95% CI error bars + horizontal PF=1.0 reference line; referenced by filename in the report.",
+          "status": "passed",
+          "evidence": "File exists (non-empty); bar chart with bootstrap CI error bars + crimson PF=1.0 dashed line (verified by rendering); referenced by filename in report '## Biểu đồ'."
+        },
+        {
+          "criterion": "stop_buffer_mae_distribution.png exists and shows control vs best-variant losing-trade MAE_R side-by-side; referenced by filename in the report.",
+          "status": "passed",
+          "evidence": "File exists (non-empty); side-by-side histogram + boxplot Control vs Variant 2 losers with MAE_R=1.0 reference line (verified by rendering); referenced by filename."
+        },
+        {
+          "criterion": "Report explicitly states the result is a provisional estimate on the frozen 974 pool, not a final confirmation.",
+          "status": "passed",
+          "evidence": "Conclusion line + '## Cảnh báo' section: 'ước lượng TẠM (PROVISIONAL)... không phải xác nhận cuối cùng'; paper-trading data insufficient."
+        },
+        {
+          "criterion": "No frozen data (pipeline_v2/data) or v2_frozen.yaml was modified; no live engine/state code changed.",
+          "status": "passed",
+          "evidence": "Only added new analysis script (pipeline_v2/scripts/analysis/stop_buffer_regime_ab.py) + report outputs; pipeline_v2/data/ and v2_frozen.yaml untouched; no live/engine/state code modified."
+        }
+      ],
+      "commandsRun": [
+        {
+          "command": "test -s trading_live/research/xauusd-liquidity-sweep/reports/experiments/stop_buffer_regime_ab_*.md && echo AB_MD_OK",
+          "status": "passed",
+          "exitCode": 0,
+          "evidence": "AB_MD_OK"
+        },
+        {
+          "command": "test -s trading_live/research/xauusd-liquidity-sweep/reports/experiments/stop_buffer_pf_comparison.png && echo AB_PFCHART_OK",
+          "status": "passed",
+          "exitCode": 0,
+          "evidence": "AB_PFCHART_OK"
+        },
+        {
+          "command": "test -s trading_live/research/xauusd-liquidity-sweep/reports/experiments/stop_buffer_mae_distribution.png && echo AB_MAECHART_OK",
+          "status": "passed",
+          "exitCode": 0,
+          "evidence": "AB_MAECHART_OK"
+        }
+      ]
+    },
+    {
+      "id": "t4",
+      "subject": "Task C — Descriptive Entry-Timing survey (no model, no tuning)",
+      "description": "Descriptive-only survey on the frozen 974-event pool (trading_live/research/xauusd-liquidity-sweep/pipeline_v2/data/labeled_events_v2.parquet). NO model training, NO parameter tuning. Output report `trading_live/research/xauusd-liquidity-sweep/reports/exploratory/entry_timing_descriptive_YYYYMMDD.md` (current run date) + `entry_timing_comparison.png` in the SAME exploratory/ dir.\n\nFor each existing event, WITHOUT changing the real entry: simulate two hypothetical entries in parallel and compare on the same event set.\n- Hypothetical A (pullback): within 1-2 bars after the real entry, if price pulls back toward the swept level (e.g. 30-50% of the entry->stop range), enter there instead; recompute risk/reward.\n- Hypothetical B (wait one more bar): shift entry to the open of bar k+2 instead of k+1, keeping stop/target logic.\n\nCompare across the whole pool: % of events where A/B can actually be filled (price really pulled back vs ran away and missed entirely); among the fillable subset, PF / avg_net_r across the 3 modes.\n\nRequired report contents:\n- Bold one-line conclusion at the TOP, in one of 3 prescribed forms: 'Không có dấu hiệu entry giả định nào tốt hơn đáng kể → giữ nguyên entry hiện tại' / 'Có dấu hiệu đáng chú ý ở [A/B] → pre-register và A/B test thật trên paper trading, KHÔNG train model ngay' / 'Dữ liệu không đủ để kết luận (n khớp lệnh quá nhỏ) → cần thêm dữ liệu'.\n- Mandatory table: Entry mode | % event khớp lệnh được | n | PF | Avg net R | Avg risk (R gốc so với entry thật), with rows Entry thật (baseline, 100%, n=974), Giả định A (pullback), Giả định B (chờ thêm 1 nến).\n- entry_timing_comparison.png: grouped bar, X = 3 entry modes, dual secondary Y axes (PF and % fillable) to show the trade-off between 'nicer entry' and 'more misses'. Reference the PNG by filename in the report.\n\nCritical: this is descriptive, NOT decision-making. Whatever the result, DO NOT change entry logic in the live Signal Engine (trading_live/live/engine/signal_engine_v2.py). Explicitly state this in the report. Add the helper analysis script at pipeline_v2/scripts/analysis/entry_timing_descriptive.py if needed; run with the repo venv.",
+      "status": "completed",
+      "assignee": "entry_analyst",
+      "dependencies": [],
+      "attempt": 1,
+      "createdAt": 1788682864266,
+      "updatedAt": 1788684007740,
+      "kind": "implementation",
+      "objective": "Answer, with data only, whether the current entry (open of the next bar after confirmation) is a poor entry point, by computing two hypothetical alternate entries (A: pullback retest within 1-2 bars; B: wait one more bar, k+2) on the frozen 974-event pool and comparing fill rate, PF and avg net R per entry mode. Purely descriptive — no model, no parameter tuning, no change to live entry logic.",
+      "inScope": [
+        "trading_live/research/xauusd-liquidity-sweep/reports/exploratory/",
+        "trading_live/research/xauusd-liquidity-sweep/pipeline_v2/scripts/analysis/entry_timing_descriptive.py"
+      ],
+      "acceptance": [
+        "Hypothetical entries A (pullback) and B (one more bar, k+2) are computed on the SAME 974-event set with the real entry unchanged.",
+        "Mandatory comparison table present with 3 rows (Entry thật baseline 100% n=974, Giả định A, Giả định B) and all 6 required columns.",
+        "entry_timing_comparison.png exists as a grouped bar with X = 3 entry modes and dual secondary Y axes (PF and % fillable); referenced by filename in the report.",
+        "Bold one-line conclusion at the TOP in one of the 3 prescribed forms.",
+        "Report explicitly states this is descriptive, not decision-making, and that NO live entry logic was changed (signal_engine_v2.py untouched).",
+        "No frozen data, config, or src/ code was modified; no live engine/state code changed."
+      ],
+      "verify": [
+        "test -s trading_live/research/xauusd-liquidity-sweep/reports/exploratory/entry_timing_descriptive_* && echo C_MD_OK",
+        "test -s trading_live/research/xauusd-liquidity-sweep/reports/exploratory/entry_timing_comparison.png && echo C_CHART_OK",
+        "grep -q 'Entry thật' trading_live/research/xauusd-liquidity-sweep/reports/exploratory/entry_timing_descriptive_* && echo C_TABLE_OK"
+      ],
+      "deliverables": [
+        "trading_live/research/xauusd-liquidity-sweep/reports/exploratory/entry_timing_descriptive_YYYYMMDD.md",
+        "trading_live/research/xauusd-liquidity-sweep/reports/exploratory/entry_timing_comparison.png"
+      ],
+      "nonGoals": [
+        "No model training.",
+        "No parameter tuning or selection.",
+        "No change to live entry logic (signal_engine_v2.py) regardless of results.",
+        "No use of new market data."
+      ],
+      "attemptId": "9da8cef8-72a7-43b8-ad14-a30ac8558dd3",
+      "reassigning": false,
+      "output": "Task C (descriptive Entry-Timing survey) completed. CONCLUSION: **Không có dấu hiệu entry giả định nào tốt hơn đáng kể → giữ nguyên entry hiện tại.** Built on the frozen 974-event pool (data/processed/labeled_events.parquet — NOTE: the assignment path pipeline_v2/data/labeled_events_v2.parquet is only 121 rows = the V2-reduced set; the true 974 pool per CHANGELOG/analysis.py is data/processed/labeled_events.parquet). Baseline (real entry): fill 100% n=974, PF=1.028 (CI 0.890-1.186), avg net R=+0.014, risk=1.00x. Hypothetical A (40% pullback toward swept level within 1-2 bars): fill 40.2% n=392, PF=0.857 (CI 0.682-1.056), avg net R=-0.094, risk=0.60x — worst (misses 60% of events AND lower PF). Hypothetical B (wait one more bar, open of k+2): fill 100% n=974, PF=0.960 (CI 0.830-1.111), avg net R=-0.020, risk=1.02x. Both A and B CIs contain/overlap baseline PF and are <= baseline PF → no significant improvement, both lean worse. Triple-barrier sim validated to reproduce frozen net_result_r for all 974 events (0 mismatches) at primary combo (2R/h16, ambiguous, mark_to_market, cost=0). Deliverables: reports/exploratory/entry_timing_descriptive_20260906.md + entry_timing_comparison.png (grouped bar, dual Y axes PF & % fill, PF=1.0 line) + entry_timing_descriptive.json. Descriptive only; signal_engine_v2.py untouched; no frozen data/config/src modified. NOTE: the repo .venv is broken (missing Python3); ran with system python3 + pandas/numpy/pyarrow + matplotlib 3.9.4 installed to a temp .dsh_pydeps (removed after run) — flag to captain.",
+      "changedPaths": [
+        "trading_live/research/xauusd-liquidity-sweep/pipeline_v2/scripts/analysis/entry_timing_descriptive.py",
+        "trading_live/research/xauusd-liquidity-sweep/reports/exploratory/entry_timing_descriptive_20260906.md",
+        "trading_live/research/xauusd-liquidity-sweep/reports/exploratory/entry_timing_comparison.png",
+        "trading_live/research/xauusd-liquidity-sweep/reports/exploratory/entry_timing_descriptive.json"
+      ],
+      "acceptanceResults": [
+        {
+          "criterion": "Hypothetical entries A (pullback) and B (one more bar, k+2) are computed on the SAME 974-event set with the real entry unchanged.",
+          "status": "passed",
+          "evidence": "Computed A (40% pullback fill within 1-2 bars, entry->stop range) and B (open of bar k+2) on the frozen 974-event pool (data/processed/labeled_events.parquet, 974 rows). Real entry fields (entry_price/stop_price/risk_price/target_2r/net_result_r) kept verbatim from the frozen dataset. Triple-barrier sim validated to reproduce the frozen net_result_r for all 974 events (0 mismatches) at primary combo (reward_r=2.0, horizon=16, ambiguous, mark_to_market, cost=0)."
+        },
+        {
+          "criterion": "Mandatory comparison table present with 3 rows (Entry thật baseline 100% n=974, Giả định A, Giả định B) and all 6 required columns.",
+          "status": "passed",
+          "evidence": "reports/exploratory/entry_timing_descriptive_20260906.md contains the mandated table with 3 rows (Entry thật 100% n=974; Giả định A 40.2% n=392; Giả định B 100% n=974) and all 6 required columns (Entry mode | % event khớp lệnh được | n | PF | Avg net R | Avg risk R gốc), plus an added PF CI95 column (common standard)."
+        },
+        {
+          "criterion": "entry_timing_comparison.png exists as a grouped bar with X = 3 entry modes and dual secondary Y axes (PF and % fillable); referenced by filename in the report.",
+          "status": "passed",
+          "evidence": "reports/exploratory/entry_timing_comparison.png (63KB) exists; grouped bar, X = 3 entry modes (Entry thật/Giả định A/Giả định B), twin Y axes (PF left, % khớp lệnh right), PF=1.0 reference line, annotated values. Referenced by filename in the report and rendered."
+        },
+        {
+          "criterion": "Bold one-line conclusion at the TOP in one of the 3 prescribed forms.",
+          "status": "passed",
+          "evidence": "Report opens with bold conclusion: '**Không có dấu hiệu entry giả định nào tốt hơn đáng kể → giữ nguyên entry hiện tại.**' (prescribed form #1)."
+        },
+        {
+          "criterion": "Report explicitly states this is descriptive, not decision-making, and that NO live entry logic was changed (signal_engine_v2.py untouched).",
+          "status": "passed",
+          "evidence": "Report has a 'Tuân thủ & Phạm vi' section stating descriptive-not-decision-making and that trading_live/live/engine/signal_engine_v2.py was kept untouched (read-only), plus a dedicated statement in the conclusion block."
+        },
+        {
+          "criterion": "No frozen data, config, or src/ code was modified; no live engine/state code changed.",
+          "status": "passed",
+          "evidence": "changedPaths are only the in-scope analysis script (pipeline_v2/scripts/analysis/entry_timing_descriptive.py) and reports/exploratory/ outputs (report .md, comparison .png, metrics .json). No frozen parquet, config, src/ module, or live engine/state file was modified."
+        }
+      ],
+      "commandsRun": [
+        {
+          "command": "test -s trading_live/research/xauusd-liquidity-sweep/reports/exploratory/entry_timing_descriptive_* && echo C_MD_OK",
+          "status": "passed",
+          "exitCode": 0,
+          "evidence": "echoed C_MD_OK"
+        },
+        {
+          "command": "test -s trading_live/research/xauusd-liquidity-sweep/reports/exploratory/entry_timing_comparison.png && echo C_CHART_OK",
+          "status": "passed",
+          "exitCode": 0,
+          "evidence": "echoed C_CHART_OK"
+        },
+        {
+          "command": "grep -q 'Entry thật' trading_live/research/xauusd-liquidity-sweep/reports/exploratory/entry_timing_descriptive_* && echo C_TABLE_OK",
+          "status": "passed",
+          "exitCode": 0,
+          "evidence": "echoed C_TABLE_OK"
+        }
+      ]
+    },
+    {
+      "id": "t5",
+      "subject": "Review Task A — Lot-size audit report vs spec",
+      "status": "completed",
+      "assignee": "qa_reviewer",
+      "dependencies": [
+        "t1"
+      ],
+      "attempt": 1,
+      "createdAt": 1788682882715,
+      "updatedAt": 1788683934880,
+      "kind": "review",
+      "objective": "Review the Task A lot-size audit report against the spec: confirm all 6 checklist questions are answered with concrete code path:line quotes, the hand-calculable example table (XAUUSD + EURUSD) is present and arithmetically correct, the stop_distance source / point-value / size_multiplier / rounding / max-lot-cap topics are all addressed, the conclusion section has both checkboxes, and no live code under trading_live/live/ was modified.",
+      "acceptance": [
+        "Report answers all 6 checklist questions, each with a concrete code path:line quote (no unsupported claims).",
+        "Example table has XAUUSD and EURUSD rows with all 10 required columns and mathematically correct values (verify by hand).",
+        "stop_distance source, point value/contract size (or hard-coded values), size_multiplier application point, volume rounding direction, and max-lot cap are each addressed.",
+        "The stop_buffer/risk interpretation is consistent with the code quoted.",
+        "Conclusion section contains both checkboxes and a concrete bug impact if a bug is claimed.",
+        "No live code file under trading_live/live/ was modified (verified via git status / no diff in live dir).",
+        "Report path follows the required 'reports/audit/lot_sizing_audit_YYYYMMDD.md' convention."
+      ],
+      "reviewedTaskId": "t1",
+      "attemptId": "87ebd3d7-a88e-41d2-96fe-3123fa751c50",
+      "reassigning": false,
+      "output": "REVIEW PASS — Task A lot-size audit (reports/audit/lot_sizing_audit_20260906.md) verified. All 6 checklist questions answered with accurate path:line quotes (re-checked against live source: signal_polling_engine_v2.py:551,572-583; execution_layer_v2.py:305-307,346-354,263-264; signal_engine_v2.py:432-437; risk_guard_v2.py:112-115,166-170; gui_bridge.py:358,369,383-388,575). Hand-calc table correct (XAU: stop 2.30, budget $100, value/lot $230, lot 0.43478→0.43, risk $98.90=0.989%; EUR: stop 20 pips, budget $50, value/lot $200, lot 0.25, risk $50=0.500%). All 5 sub-topics addressed (stop_distance source, point value/contract size, size_multiplier application, volume rounding, max-lot cap). Conclusion has both checkboxes + concrete quantified impact (~43x/25x undershoot). Dated filename + bold-conclusion-first format conform. No live code added/modified by the audit (no untracked new files under live/engine,state,gui; report is the only artifact). Core finding (NO risk-based lot formula; lot=0.01 constant; position_sizing config is dead) is correct and well-supported.",
+      "verdict": "pass",
+      "acceptanceResults": [
+        {
+          "criterion": "Report answers all 6 checklist questions, each with a concrete code path:line quote (no unsupported claims).",
+          "status": "passed",
+          "evidence": "All 6 Qs cite accurate path:line. Q1 signal_polling_engine_v2.py:551,572-583 + execution_layer_v2.py:305-307,346-354 (lot=0.01 constant, no volume passed); Q2 signal_engine_v2.py:432-437 (stop_distance computed once); Q3 execution_layer_v2.py:263-264 (get_symbol_info pass-through, no contract size); Q4 risk_guard_v2.py:112-115,166-170 (multiplier applied nowhere); Q5, Q6. Every quote re-read against live source — accurate."
+        },
+        {
+          "criterion": "Example table has XAUUSD and EURUSD rows with all 10 required columns and mathematically correct values (verify by hand).",
+          "status": "passed",
+          "evidence": "Bảng 1 has all 10 spec columns with the spec's exact header. Hand-verified: XAU stop dist 2.30, budget $100, value/lot 2.30*100=$230, lot 100/230=0.43478 -> rounded down 0.43, risk 0.43*230=$98.90=0.989%. EUR stop 20 pips, budget $50 (1%x0.5), value/lot 20*$10=$200, lot 50/200=0.25, risk 0.25*200=$50=0.500%. Rounding down to 0.01 step and the real-risk>=intended reading are consistent."
+        },
+        {
+          "criterion": "stop_distance source, point value/contract size (or hard-coded values), size_multiplier application point, volume rounding direction, and max-lot cap are each addressed.",
+          "status": "passed",
+          "evidence": "Q2 stop_distance (computed once in Signal Engine, not recomputed in Execution Layer); Q3 point value/contract size (not read nor hard-coded; MT5-default contract size assumed and explicitly disclaimed for hand-calc only); Q4 size_multiplier (applied nowhere + commutativity argument); Q5 volume rounding (none client-side, broker decides); Q6 max-lot cap (none). Cited position_sizing values confirmed identical in both configs/symbols/ and research/configs/symbols/ copies."
+        },
+        {
+          "criterion": "The stop_buffer/risk interpretation is consistent with the code quoted.",
+          "status": "passed",
+          "evidence": "Consistent — send_order default volume=0.01, no volume passed, no risk% read into sizing; report's 'no risk-based lot formula exists' finding matches code."
+        },
+        {
+          "criterion": "Conclusion section contains both checkboxes and a concrete bug impact if a bug is claimed.",
+          "status": "passed",
+          "evidence": "Both checkboxes present ([x] bug/missing-implementation found, [ ] no bug). Concrete quantified impact: actual risk ~0.023% (XAU)/0.020% (EUR) vs 1%/0.5% budget = ~43x/25x smaller = ~2.3%/4.0% of budget."
+        },
+        {
+          "criterion": "No live code file under trading_live/live/ was modified (verified via git status / no diff in live dir).",
+          "status": "passed",
+          "evidence": "Audit added no code: no untracked new files under live/engine,state,gui; the report (reports/audit/lot_sizing_audit_20260906.md) is the audit's only artifact and asserts read-only. QUALIFICATION: git status shows pre-existing tracked modifications in live/ (signal_engine, signal_polling_engine, gui_bridge, gui_main, gui_tab_live, gui_tab_onboarding, risk_guard, shared_app_state, db/*) — attributable to prior/pending development work (M15 gating, GUI rework, risk-guard fixes per memory), NOT this read-only audit. Dirtiness is a workspace condition, not an audit action."
+        },
+        {
+          "criterion": "Report path follows the required 'reports/audit/lot_sizing_audit_YYYYMMDD.md' convention.",
+          "status": "passed",
+          "evidence": "trading_live/research/xauusd-liquidity-sweep/reports/audit/lot_sizing_audit_20260906.md matches the convention."
+        }
+      ]
+    },
+    {
+      "id": "t6",
+      "subject": "Review Task B — Stop-buffer A/B report vs spec",
+      "status": "completed",
+      "assignee": "qa_reviewer",
+      "dependencies": [
+        "t3"
+      ],
+      "attempt": 1,
+      "createdAt": 1788682882724,
+      "updatedAt": 1788684532959,
+      "kind": "review",
+      "objective": "Review the Task B stop-buffer A/B report against the spec: confirm the 3 variants are exactly the pre-registered ones (Control 0.10/0.10/0.10, V1 0.15/0.10/0.08, V2 0.20/0.10/0.08), the success criteria are stated (expectancy +>0.05R, PF 95% CI excludes control, n>=30), the bold conclusion line is at the top in one of the two prescribed forms, a 'Pre-registered criteria' section follows it, the main results table has all 8 required columns, BOTH PNG charts exist and are referenced by filename with the correct features (PF reference line at 1.0; MAE_R control-vs-best side-by-side), and the provisional-not-final flag is present. No frozen data or live config/engine changed.",
+      "acceptance": [
+        "3 variants match pre-registration exactly, no post-hoc changes.",
+        "Success criteria stated (expectancy >+0.05R, PF 95% CI excludes control, n>=30).",
+        "Bold conclusion line at top in one of the two prescribed forms; 'Pre-registered criteria' section immediately after.",
+        "Main results table has all 8 columns for all 3 variants.",
+        "stop_buffer_pf_comparison.png present with PF bars + 95% CI error bars + horizontal PF=1.0 line, referenced by filename.",
+        "stop_buffer_mae_distribution.png present showing control vs best-variant MAE_R, referenced by filename.",
+        "Provisional/frozen-974-not-final flag clearly stated.",
+        "No frozen data, v2_frozen.yaml, or live engine/state files modified."
+      ],
+      "reviewedTaskId": "t3",
+      "attemptId": "774b93f9-7cff-469f-8fbf-45b9fb86169d",
+      "reassigning": false,
+      "output": "REVIEW PASS — Task B stop-buffer A/B report (reports/experiments/stop_buffer_regime_ab_20260906.md) verified. 3 variants match pre-registration verbatim (Control 0.10/0.10/0.10, V1 0.15/0.10/0.08, V2 0.20/0.10/0.08); success criteria (C1 >0.05R, C2 PF CI excludes control, C3 n>=30) stated; bold conclusion at top = prescribed form 2 (no variant met criteria → keep Control); Pre-registered criteria section immediately follows; main table has all 8 attribute columns for all 3 variants (values match JSON); both charts present and correct — stop_buffer_pf_comparison.png (3 PF bars + 95% CI error bars + PF=1.0 line) and stop_buffer_mae_distribution.png (Control vs Variant 2 histogram + boxplot, MAE_R=1.0 line); PROVISIONAL flag clearly stated (frozen-974 relabel via walk-forward, NOT final). No frozen data modified (frozen pool tracked & clean, 974 rows intact; relabel produced separate 2922-row intermediate). Live engine/state mods are pre-existing prior-work, not this task. Verdict: PASS (no revisions needed).",
+      "verdict": "pass",
+      "acceptanceResults": [
+        {
+          "criterion": "3 variants match pre-registration exactly, no post-hoc changes.",
+          "status": "passed",
+          "evidence": "Pre-registered criteria section (report lines 17-21) lists exactly Control 0.10/0.10/0.10, Variant 1 0.15/0.10/0.08, Variant 2 0.20/0.10/0.08 — matching the spec's variant table verbatim. JSON _meta.variants confirms the same 3. No post-hoc addition/removal (report and JSON list only these 3)."
+        },
+        {
+          "criterion": "Success criteria stated (expectancy >+0.05R, PF 95% CI excludes control, n>=30).",
+          "status": "passed",
+          "evidence": "Pre-registered criteria section (lines 10-13): C1 expectancy net OOS >0.05R vs control; C2 Wilson/bootstrap 95% CI of PF excludes control PF; C3 n>=30 per variant. All three stated."
+        },
+        {
+          "criterion": "Bold conclusion line at top in one of the two prescribed forms; 'Pre-registered criteria' section immediately after.",
+          "status": "passed",
+          "evidence": "Line 3 bold: '**KẾT LUẬN: KHÔNG biến thể nào đạt tiêu chí thành công đã pre-register — giữ nguyên Control (0.10 / 0.10 / 0.10).**' = prescribed form 2. 'Pre-registered criteria' section immediately follows (line 7)."
+        },
+        {
+          "criterion": "Main results table has all 8 columns for all 3 variants.",
+          "status": "passed",
+          "evidence": "Table (lines 27-31) has all 8 attribute columns (n, PF, PF CI95, Avg net R, Breakeven cost, Stop rate, Time rate, Target rate) + Biến thể label, for all 3 variants. Values match JSON exactly (Control 1.0279/CI[0.8923,1.1831]/+0.0140; V1 1.0250/[0.8906,1.1791]/+0.0126; V2 1.0317/[0.8954,1.1863]/+0.0158)."
+        },
+        {
+          "criterion": "stop_buffer_pf_comparison.png present with PF bars + 95% CI error bars + horizontal PF=1.0 line, referenced by filename.",
+          "status": "passed",
+          "evidence": "Visually verified: 3 PF bars (Control/Variant 1/Variant 2) with 95% bootstrap CI error bars (labels [0.892,1.183]/[0.891,1.179]/[0.895,1.186]), red dashed horizontal PF=1.0 line, bar values 1.0279/1.0250/1.0317. Referenced by filename (line 49)."
+        },
+        {
+          "criterion": "stop_buffer_mae_distribution.png present showing control vs best-variant MAE_R, referenced by filename.",
+          "status": "passed",
+          "evidence": "Visually verified: 2 panels — histogram (Control n=562 vs Variant 2 n=559) and boxplot (medians 1.627 vs 1.613), with red dashed MAE_R=1.0 reference line, side-by-side Control vs Variant 2 (best). Referenced by filename (line 50)."
+        },
+        {
+          "criterion": "Provisional/frozen-974-not-final flag clearly stated.",
+          "status": "passed",
+          "evidence": "Conclusion line 3 + 'Cảnh báo' section (lines 94-99) explicitly: PROVISIONAL, relabel of frozen 974 evaluated by walk-forward, paper-trading data insufficient, NOT final confirmation. JSON _meta.provisional=true. Complies with spec's allowed fallback and no-leakage principle."
+        },
+        {
+          "criterion": "No frozen data, v2_frozen.yaml, or live engine/state files modified.",
+          "status": "passed",
+          "evidence": "Frozen pool data/processed/labeled_events.parquet is TRACKED in the research submodule and git status clean (content unchanged); verified 974 rows with net_result_r/exit_reason/gross_result_r intact. The relabel produced a separate intermediate (stop_buffer_regime_ab_20260906_events.parquet, 2922 rows = 3x974) — the frozen pool was NOT overwritten. v2_frozen.yaml is untracked (no git baseline to diff) but is a pre-existing frozen reference input, not plausibly modified by a re-simulation (report claims no config change; the mechanism reads config only). Live engine/state (signal_engine, signal_polling_engine, risk_guard, shared_app_state) show `M` — these are the pre-existing prior-work modifications (identical set to the Task A review baseline), NOT attributable to Task B."
+        }
+      ]
+    },
+    {
+      "id": "t7",
+      "subject": "Review Task C — Entry-timing descriptive report vs spec",
+      "status": "completed",
+      "assignee": "qa_reviewer",
+      "dependencies": [
+        "t4"
+      ],
+      "attempt": 1,
+      "createdAt": 1788682882731,
+      "updatedAt": 1788684162448,
+      "kind": "review",
+      "objective": "Review the Task C entry-timing descriptive report against the spec: confirm hypothetical entries A (pullback) and B (one more bar k+2) were computed on the same 974-event set with the real entry unchanged, the mandatory 3-row comparison table (baseline/A/B) with all 6 columns is present, entry_timing_comparison.png exists as a grouped bar with X = 3 entry modes and dual secondary Y axes and is referenced by filename, the bold conclusion is at the top in one of the 3 prescribed forms, and the report states it is descriptive-only with no change to live entry logic (signal_engine_v2.py untouched). No model trained, no params tuned, no frozen data/src/config changed.",
+      "acceptance": [
+        "Hypothetical entries A and B computed on same 974-event set, real entry unchanged.",
+        "Mandatory 3-row comparison table (Entry thật / Giả định A / Giả định B) with all 6 required columns and correct baseline (100%, n=974).",
+        "entry_timing_comparison.png exists as grouped bar with X=3 modes and dual secondary Y axes (PF and % fillable), referenced by filename.",
+        "Bold conclusion at top in one of the 3 prescribed forms.",
+        "Report states descriptive-only and that no live entry logic (signal_engine_v2.py) was changed.",
+        "No model training or parameter tuning performed; no frozen data, config, or src/ modified."
+      ],
+      "reviewedTaskId": "t4",
+      "attemptId": "fbbf8b96-bac5-4439-87ed-a6385da88f13",
+      "reassigning": false,
+      "output": "REVIEW PASS — Task C entry-timing descriptive report (reports/exploratory/entry_timing_descriptive_20260906.md) verified. 3-row mandatory table (baseline/Giả định A/Giả định B) with all 6 required columns + CI95 bonus, baseline correct (100%, n=974, PF 1.03, +0.014R, 1.00x). Verified frozen pool data/processed/labeled_events.parquet holds exactly 974 rows. Chart entry_timing_comparison.png confirmed as grouped bar with X=3 modes, dual Y axes (PF + % fill), PF=1.0 dashed reference line, referenced by filename. Bold conclusion at top matches prescribed form 1. JSON matches table exactly. Report explicitly states descriptive-only, no model/tuning, no live logic change. No src/, data/processed, or config modified; no leftover temp deps. Verdict: PASS (no revisions needed).",
+      "verdict": "pass",
+      "acceptanceResults": [
+        {
+          "criterion": "Hypothetical entries A and B computed on same 974-event set, real entry unchanged.",
+          "status": "passed",
+          "evidence": "Frozen pool data/processed/labeled_events.parquet verified to contain exactly 974 rows (system python3 + pandas). Baseline reuses dataset entry/stop/target/net_result_r unchanged; A and B computed in parallel on the same 974 events (JSON n_total_events=974; n_fillable baseline 974, A 392, B 974). Triple-barrier sim documented as reproducing frozen net_result_r for all 974 (0 mismatches)."
+        },
+        {
+          "criterion": "Mandatory 3-row comparison table (Entry thật / Giả định A / Giả định B) with all 6 required columns and correct baseline (100%, n=974).",
+          "status": "passed",
+          "evidence": "Table has all 6 required columns (Entry mode, % khớp, n, PF, Avg net R, Avg risk) plus a spec-compliant PF CI95 bonus column. Baseline row: 100%, n=974, PF 1.03, avg net R +0.014, risk 1.00x. Values match JSON exactly (baseline 1.0279/0.014/CI 0.890-1.186; A 0.8569/-0.0939/CI 0.68-1.06/0.60x; B 0.9604/-0.0201/CI 0.83-1.11/1.02x)."
+        },
+        {
+          "criterion": "entry_timing_comparison.png exists as grouped bar with X=3 modes and dual secondary Y axes (PF and % fillable), referenced by filename.",
+          "status": "passed",
+          "evidence": "Visually verified PNG: grouped bar, X=3 entry modes (Entry thật/Giả định A/Giả định B), dual Y axes (left 'Profit Factor (PF)', right '% event khớp lệnh được (fill rate)'), red dashed PF=1.0 reference line, bar labels 1.03/0.86/0.96 (PF) and 100.0/40.2/100.0 (fill). Referenced by filename in report (line 77)."
+        },
+        {
+          "criterion": "Bold conclusion at top in one of the 3 prescribed forms.",
+          "status": "passed",
+          "evidence": "Line 3: bold '**Không có dấu hiệu entry giả định nào tốt hơn đáng kể → giữ nguyên entry hiện tại.**' — matches prescribed form 1 (no significant signal → keep current entry)."
+        },
+        {
+          "criterion": "Report states descriptive-only and that no live entry logic (signal_engine_v2.py) was changed.",
+          "status": "passed",
+          "evidence": "Lines 26, 84-87 explicitly state descriptive-only, no model training, no tuning, no change to live entry logic; signal_engine_v2.py untouched. git status signal_engine_v2.py `M` is the pre-existing prior-work modification (same as Task A review baseline), NOT attributable to this task."
+        },
+        {
+          "criterion": "No model training or parameter tuning performed; no frozen data, config, or src/ modified.",
+          "status": "passed",
+          "evidence": "Confirmed via git status: pipeline src/ clean, data/processed clean, configs clean, no leftover .dsh_pydeps temp dir (removed as claimed). No new live code added — only deliverables (report/png/json/script) created. Frozen pool file unchanged and still 974 rows."
+        }
+      ]
+    },
+    {
+      "id": "t8",
+      "subject": "Integration — cross-check all 3 reports against shared standards",
+      "description": "After the 3 per-task reviews pass, do a final cross-cutting verification of the whole batch against the spec's SHARED reporting standards and the mandatory no-data-leakage principle (spec lines 133-143): dated filenames (no overwrite), bold conclusion at top, CI 95% columns where computable, separate PNG per chart referenced by filename in the report, threshold reference lines, 'Pre-registered criteria' section for experiments, and read-only respect for frozen data / live code. Produce a short closure summary listing each deliverable path and whether it passed.",
+      "status": "completed",
+      "dependencies": [
+        "t5",
+        "t6",
+        "t7"
+      ],
+      "attempt": 1,
+      "createdAt": 1788682893577,
+      "updatedAt": 1788684729566,
+      "kind": "integration",
+      "objective": "Final integration verification that all 3 verification/analysis reports (lot-size audit, stop-buffer A/B, entry-timing descriptive) are produced under their required reports/ paths with dated filenames, each satisfies the spec's shared reporting standards (bold conclusion at top, CI 95% where computable, separate PNG referenced by filename, threshold reference line, Pre-registered criteria for experiments), and the no-data-leakage principle is honored (no frozen data/config modified; frozen-974 use flagged as provisional; no live code changed).",
+      "inScope": [
+        "trading_live/research/xauusd-liquidity-sweep/reports/audit/",
+        "trading_live/research/xauusd-liquidity-sweep/reports/experiments/",
+        "trading_live/research/xauusd-liquidity-sweep/reports/exploratory/"
+      ],
+      "acceptance": [
+        "All 3 deliverables present at their required paths with dated filenames (audit/, experiments/, exploratory/).",
+        "Each report has a bold conclusion line at the top and, where computable, a PF 95% CI column.",
+        "Each report's PNG is a separate file in the same directory and is referenced by filename in the report (no base64, no verbal-only description).",
+        "Reference-line/threshold markers present where the spec requires (PF=1.0 on the A/B PF chart).",
+        "Experiments report includes a 'Pre-registered criteria' section.",
+        "The no-data-leakage principle respected: nothing in the frozen pipeline_v2/data or configs was modified, and any use of the frozen 974 pool is explicitly flagged as provisional.",
+        "No live trading code (trading_live/live/engine|state|mcp|gui) was modified by the analysis tasks."
+      ],
+      "assignee": "qa_reviewer",
+      "attemptId": "9f71b8e6-be86-4542-98ba-c200e6caac54",
+      "reassigning": false,
+      "output": "INTEGRATION CROSS-CHECK PASS (t8) — all 3 reports conform to the spec's shared reporting standards and the no-data-leakage principle. Deliverables (all PASS): reports/audit/lot_sizing_audit_20260906.md; reports/experiments/stop_buffer_regime_ab_20260906.md (+ stop_buffer_pf_comparison.png + stop_buffer_mae_distribution.png); reports/exploratory/entry_timing_descriptive_20260906.md (+ entry_timing_comparison.png). Dated filenames in correct subdirs; bold conclusion on top of each; PF 95% CI columns in B and C (N/A for audit A); charts are separate co-located .png referenced by filename with threshold reference lines (PF=1.0, MAE_R=1.0); 'Pre-registered criteria' section in the experiments report; no-data-leakage honored (frozen pool intact & not overwritten; B flagged provisional; C descriptive-only, no tuning); no live engine/state/mcp/gui code modified by the analysis tasks (live `M` flags = pre-existing prior-work). INFO (non-defect): research .venv is broken (missing Python3); analysts used system python3 + temp matplotlib — run-environment only, does not affect report validity.",
+      "acceptanceResults": [
+        {
+          "criterion": "All 3 deliverables present at their required paths with dated filenames (audit/, experiments/, exploratory/).",
+          "status": "passed",
+          "evidence": "reports/audit/lot_sizing_audit_20260906.md, reports/experiments/stop_buffer_regime_ab_20260906.md, reports/exploratory/entry_timing_descriptive_20260906.md — all present, all dated 2026-09-06, in the audit/experiments/exploratory subdirs the spec prescribes. No overwrite of older reports."
+        },
+        {
+          "criterion": "Each report has a bold conclusion line at the top and, where computable, a PF 95% CI column.",
+          "status": "passed",
+          "evidence": "All 3 reports open with a bold conclusion line directly answering the question. B (main table) and C (comparison table) carry a PF 95% CI column. A is a technical audit with no experimental statistics — a CI column is not computable/applicable and is correctly absent."
+        },
+        {
+          "criterion": "Each report's PNG is a separate file in the same directory and is referenced by filename in the report (no base64, no verbal-only description).",
+          "status": "passed",
+          "evidence": "B: stop_buffer_pf_comparison.png + stop_buffer_mae_distribution.png co-located in reports/experiments/ and referenced by filename. C: entry_timing_comparison.png co-located in reports/exploratory/ and referenced by filename. A requires no chart (technical audit). No base64 embedding or verbal-substitution anywhere."
+        },
+        {
+          "criterion": "Reference-line/threshold markers present where the spec requires (PF=1.0 on the A/B PF chart).",
+          "status": "passed",
+          "evidence": "stop_buffer_pf_comparison.png has a horizontal PF=1.0 reference line; stop_buffer_mae_distribution.png has an MAE_R=1.0 (stop) line; entry_timing_comparison.png has a PF=1.0 line. All thresholds visibly labeled (no self-inference needed)."
+        },
+        {
+          "criterion": "Experiments report includes a 'Pre-registered criteria' section.",
+          "status": "passed",
+          "evidence": "stop_buffer_regime_ab_20260906.md has a '## Pre-registered criteria' section immediately after the conclusion (C1 >0.05R, C2 PF CI excludes control, C3 n>=30, plus the 3 fixed variants). C documents its pre-registered design table too. A is a technical audit — no pre-registration applicable."
+        },
+        {
+          "criterion": "The no-data-leakage principle respected: nothing in the frozen pipeline_v2/data or configs was modified, and any use of the frozen 974 pool is explicitly flagged as provisional.",
+          "status": "passed",
+          "evidence": "Frozen pool data/processed/labeled_events.parquet tracked & clean in the research submodule (974 rows intact, outcome columns present); the B relabel produced a separate 2922-row intermediate rather than overwriting it. pipeline_v2/configs not modified (v2_frozen.yaml is a pre-existing untracked frozen reference input). B explicitly flags the frozen-974 relabel as PROVISIONAL (not final); C is purely descriptive with no tuning."
+        },
+        {
+          "criterion": "No live trading code (trading_live/live/engine|state|mcp|gui) was modified by the analysis tasks.",
+          "status": "passed",
+          "evidence": "git status shows signal_engine_v2, signal_polling_engine_v2, risk_guard_v2, shared_app_state_v2 as `M` — but these are pre-existing prior-work modifications (identical set to the Task A review baseline), attributable to earlier M15-gating/GUI/risk-guard work, NOT the 3 analysis/review tasks. No live engine/state/mcp/gui file was added or edited by these tasks."
+        }
+      ],
+      "commandsRun": [
+        {
+          "command": "python3 -c \"import pandas as pd; print(len(pd.read_parquet('trading_live/research/xauusd-liquidity-sweep/data/processed/labeled_events.parquet')))\"",
+          "status": "passed",
+          "evidence": "974 rows — frozen pool intact and correct."
+        },
+        {
+          "command": "python3 -c \"pandas read_parquet stop_buffer_regime_ab_20260906_events.parquet\"",
+          "status": "passed",
+          "evidence": "2922 rows = 3 variants x 974; variant column = Control / Variant 1 / Variant 2 (proves B relabeled rather than overwriting the frozen pool)."
+        },
+        {
+          "command": "git status --porcelain (research submodule) data/processed/ pipeline_v2/configs/",
+          "status": "passed",
+          "evidence": "Frozen pool tracked & clean (content unchanged); v2_frozen.yaml untracked (no git baseline) but not modified by the tasks."
+        },
+        {
+          "command": "git status (parent repo) trading_live/live/engine/ trading_live/live/state/",
+          "status": "passed",
+          "evidence": "signal_engine_v2, signal_polling_engine_v2, risk_guard_v2, shared_app_state_v2 show `M` — pre-existing prior-work modifications (same set as the Task A review baseline), not attributable to the 3 analysis/review tasks."
+        },
+        {
+          "command": "read_image on stop_buffer_pf_comparison.png / stop_buffer_mae_distribution.png / entry_timing_comparison.png",
+          "status": "passed",
+          "evidence": "Verified required chart features: grouped bars + 95% CI error bars + PF=1.0 line (B pf), MAE_R=1.0 line + control-vs-best histogram/boxplot (B mae), dual-axis PF/%fill grouped bars + PF=1.0 line (C)."
+        }
+      ]
+    },
+    {
+      "id": "t9",
+      "subject": "Fix 1 — Risk-based lot sizing (wire into live order path)",
+      "description": "Implement risk-based lot sizing in the live order path, fixing the core finding from Task A. The audit confirmed there is NO lot formula today (auto orders always send volume=0.01; position_sizing config is dead). Add a real risk-per-trade calculation and wire it so BOTH the automated path and the manual GUI path size orders by account risk%.\n\nRequired design decisions (document in code/PR):\n1. lot = (balance * risk_per_trade_pct) / (stop_distance * per-symbol point_value * contract_size_per_lot).\n2. stop_distance = |entry_price - stop_price| computed once in the Signal Engine (signal_engine_v2.py:432-437) — reuse it; do NOT recompute divergently in the Execution Layer.\n3. Point value / contract size: read per-symbol from MCP symbol_info if available; otherwise document a per-symbol hard-code (list exact XAUUSD and EURUSD values and their source). get_symbol_info is currently a pass-through (execution_layer_v2.py:263-264) — inspect what it returns and extend/handle contract_size/tick_value/trade_contract_size.\n4. size_multiplier (1.0 XAU / 0.5 EUR): apply as a risk scalar BEFORE the lot calc. Do NOT append after the lot calc (that would reduce effective risk% — wrong semantics).\n5. Round the final lot DOWN to broker volume_step, clamp to [volume_min, volume_max]; add a hard absolute max-lot cap (config max_position_size_lots or a defined constant) so a calculation error can never produce a huge order.\n6. Single-source the position_sizing config: resolve the signal_engine_v2.py:59 (research/configs/symbols/) vs risk_guard_v2.py:22 (configs/symbols/) mismatch by pointing both at one canonical location.\n7. Resolve the EURUSD double-scaling ambiguity: risk_per_trade_pct=0.5 AND base_multiplier=0.5 — define the semantics explicitly (e.g. risk_per_trade_pct is the % risk budget; base_multiplier is a per-symbol scalar; decide whether both multiply and document the resulting effective %, avoiding the accidental 0.25%).\n\nPreserve all existing safety/logging: kill-switch check (execution_layer_v2.py send_order), order logging via paper_logger, magic=20791 & LSW-V2 comment, update_mt5_status, slippage/result logging. Add a numerical unit check (XAUUSD and EURUSD examples) that the computed lot yields actual risk ≈ the intended % (within volume rounding). Do NOT change gui_bridge.py (that is Fix 2's scope). The research .venv is broken — run checks with /usr/bin/python3.",
+      "status": "in_progress",
+      "assignee": "audit_analyst",
+      "dependencies": [],
+      "attempt": 1,
+      "createdAt": 1788685255991,
+      "updatedAt": 1788685358125,
+      "kind": "implementation",
+      "objective": "Implement risk-based lot sizing in trading_live/live so the live order path sizes lots from account risk% per trade instead of always sending volume=0.01. Compute lot from balance x risk_per_trade_pct divided by stop_distance x per-symbol point value x contract size, apply size_multiplier BEFORE the lot calc as a risk scalar, round down to broker volume_step and clamp to min/max + a hard absolute max-lot cap, reusing the stop_distance already computed in the Signal Engine, resolving the position_sizing config single-source and the EURUSD double-scaling semantics, all while preserving kill-switch, logging, magic/comment, and MT5 status updates.",
+      "inScope": [
+        "trading_live/live/engine/execution_layer_v2.py",
+        "trading_live/live/engine/signal_engine_v2.py",
+        "trading_live/live/state/risk_guard_v2.py",
+        "trading_live/live/state/shared_app_state_v2.py",
+        "trading_live/live/mcp/mt5_mcp_client.py",
+        "trading_live/research/configs/symbols/"
+      ],
+      "acceptance": [
+        "A risk-based lot formula is implemented and used by the live order path (auto + manual share it).",
+        "Lot = (balance x risk_per_trade_pct) / (stop_distance x per-symbol point value x contract size per lot), with stop_distance sourced consistently from the Signal Engine (|entry - stop|), not recomputed divergently in another layer.",
+        "Point value / contract size taken per-symbol from MCP symbol_info (or clearly documented per-symbol hard-code for XAUUSD/EURUSD with the exact values listed).",
+        "size_multiplier (1.0 XAU / 0.5 EUR) is applied BEFORE the lot calc as a risk scalar — NOT appended after (which would silently lower effective risk%).",
+        "Final lot is rounded DOWN to broker volume_step and clamped to volume_min/volume_max, AND a hard absolute max-lot cap prevents any unintended huge order.",
+        "The position_sizing config single-source is resolved (signal_engine_v2.py:59 vs risk_guard_v2.py:22 path mismatch), with a canonical path used consistently.",
+        "The EURUSD double-scaling (risk_per_trade_pct=0.5 AND base_multiplier=0.5) is resolved to an explicit, documented semantics (no accidental 0.25%).",
+        "Kill-switch check, order logging, magic/comment, and MT5 status updates are preserved (no regression).",
+        "Existing behavior still compiles/imports (py_compile passes) and a numerical example verifies XAUUSD/EURUSD computed lot yields risk ≈ intended % (within rounding).",
+        "No change to gui_bridge.py, frozen data, v2_frozen.yaml, or the research .venv."
+      ],
+      "verify": [
+        "cd trading_live/live && /usr/bin/python3 -m py_compile engine/execution_layer_v2.py state/risk_guard_v2.py state/shared_app_state_v2.py mcp/mt5_mcp_client.py && echo LOT_COMPILE_OK",
+        "cd trading_live/live && grep -q 'risk_per_trade_pct' engine/execution_layer_v2.py && echo LOT_RISKWIRE_OK"
+      ],
+      "deliverables": [
+        "trading_live/live/engine/execution_layer_v2.py",
+        "trading_live/live/state/risk_guard_v2.py",
+        "trading_live/live/state/shared_app_state_v2.py",
+        "trading_live/live/mcp/mt5_mcp_client.py"
+      ],
+      "nonGoals": [
+        "No change to gui_bridge.py (Fix 2 owns the manual send-order path).",
+        "No change to frozen research data, v2_frozen.yaml, or the .venv.",
+        "No change to backtest/labeling code."
+      ],
+      "attemptId": "6df76c4d-03c6-475b-a5ce-d9ca6b7ca89d",
+      "reassigning": false
+    },
+    {
+      "id": "t10",
+      "subject": "Fix 2 — Repair manual GUI send-order path",
+      "description": "Fix the broken manual GUI order-send path (side finding from Task A). gui_bridge.send_order calls self._exec_layer.place_order(...) (gui_bridge.py:369) but ExecutionLayer has NO place_order method — it has send_order(asset, direction, entry_price, stop_loss, take_profit, volume=0.01, ...) (execution_layer_v2.py:307). The AttributeError is swallowed (gui_bridge.py:383-388) so every manual send returns {\\\"ok\\\": False}.\n\nFix: change gui_bridge.py to call the correct method with correctly-mapped keyword args:\n  result = self._exec_layer.send_order(asset=asset, direction=\\\"buy\\\"/\\\"sell\\\", entry_price=entry_price, stop_loss=stop_loss, take_profit=take_profit, volume=lot_size)\nPreserve the existing lock (self._mcp_lock), _log call, syslog INFO on success, syslog ERROR + {\\\"ok\\\": False, \\\"error\\\"} return on failure. Verify the manual path actually dispatches to ExecutionLayer.send_order and returns the real order result (not a swallowed error). Do NOT modify execution_layer_v2.py (Fix 1's scope) or configs. The research .venv is broken — run checks with /usr/bin/python3.",
+      "status": "completed",
+      "assignee": "entry_analyst",
+      "dependencies": [],
+      "attempt": 1,
+      "createdAt": 1788685256107,
+      "updatedAt": 1788685584275,
+      "kind": "implementation",
+      "objective": "Fix the broken manual GUI order-send path in gui_bridge.py by calling the real ExecutionLayer.send_order method (with correct keyword mapping) instead of the nonexistent place_order, so a manual send no longer hits a swallowed AttributeError and returns the real order result, while preserving the existing lock, logging, and error handling.",
+      "inScope": [
+        "trading_live/live/gui/gui_bridge.py"
+      ],
+      "acceptance": [
+        "gui_bridge.py no longer calls the nonexistent _exec_layer.place_order.",
+        "gui_bridge.send_order calls the correct ExecutionLayer method (send_order) with correctly-mapped kwargs (asset/direction/entry_price/stop_loss/take_profit/volume).",
+        "A manual order send now reaches ExecutionLayer and does not hit a swallowed AttributeError; the returned dict is the real order result.",
+        "Order logging (syslog INFO) and error handling (syslog ERROR + {\"ok\": False}) are preserved.",
+        "No regression to the automatic order path and no change to execution_layer_v2.py, risk_guard_v2.py, or configs (those are Fix 1's scope)."
+      ],
+      "verify": [
+        "cd trading_live/live && /usr/bin/python3 -m py_compile gui/gui_bridge.py && echo GUI_COMPILE_OK",
+        "! grep -q 'place_order' gui/gui_bridge.py && echo GUI_PLACEORDER_GONE",
+        "grep -q 'self._exec_layer.send_order' gui/gui_bridge.py && echo GUI_SENDORDER_OK"
+      ],
+      "deliverables": [
+        "trading_live/live/gui/gui_bridge.py"
+      ],
+      "nonGoals": [
+        "No change to execution_layer_v2.py, risk_guard_v2.py, or any config file (Fix 1's scope).",
+        "No change to live lot-sizing logic.",
+        "No change to frozen data or the .venv."
+      ],
+      "attemptId": "825c8461-fd7a-488f-ad45-238f798b00fb",
+      "reassigning": false,
+      "output": "Fix 2 (repair manual GUI send-order path) COMPLETED. Changed gui_bridge.send_order in trading_live/live/gui/gui_bridge.py to call the real ExecutionLayer.send_order method (execution_layer_v2.py:305) with correctly-mapped kwargs instead of the nonexistent _exec_layer.place_order. New call: self._exec_layer.send_order(asset=asset, direction=order_direction('buy'/'sell'), entry_price=entry_price, stop_loss=stop_loss, take_profit=take_profit, volume=lot_size), inside the existing self._mcp_lock. Preserved _log(...), syslog INFO on the success path, and the except block (syslog ERROR + {\"ok\": False, \"error\": str(e)}). The manual path now dispatches to the real ExecutionLayer.send_order and returns its actual order-result dict (success/event_id/order_result/order_sent) instead of hitting a swallowed AttributeError. Verification: AST_PARSE_OK, GUI_COMPILE_OK, GUI_PLACEORDER_GONE (no place_order anywhere in live/), GUI_SENDORDER_OK. Only gui_bridge.py changed; execution_layer_v2.py, risk_guard_v2.py, signal_engine_v2.py, and configs untouched (their git 'M' status is pre-existing from prior tasks). ENV NOTE for captain: the literal py_compile writes .pyc to ~/Library/Caches which the sandbox blocks; ran the equivalent compile with PYTHONPYCACHEPREFIX→writable temp dir.",
+      "changedPaths": [
+        "trading_live/live/gui/gui_bridge.py"
+      ],
+      "acceptanceResults": [
+        {
+          "criterion": "gui_bridge.py no longer calls the nonexistent _exec_layer.place_order.",
+          "status": "passed",
+          "evidence": "grep -q 'place_order' gui/gui_bridge.py returns nothing; confirmed no 'place_order' anywhere under trading_live/live/ after the fix (the only prior reference was gui_bridge.py:369, now replaced by send_order)."
+        },
+        {
+          "criterion": "gui_bridge.send_order calls the correct ExecutionLayer method (send_order) with correctly-mapped kwargs (asset/direction/entry_price/stop_loss/take_profit/volume).",
+          "status": "passed",
+          "evidence": "gui_bridge.send_order now calls self._exec_layer.send_order(asset=asset, direction=order_direction('buy'/'sell'), entry_price=entry_price, stop_loss=stop_loss, take_profit=take_profit, volume=lot_size), matching ExecutionLayer.send_order signature (execution_layer_v2.py:305 def send_order(self, asset, direction, entry_price, stop_loss, take_profit, volume=0.01, ...))."
+        },
+        {
+          "criterion": "A manual order send now reaches ExecutionLayer and does not hit a swallowed AttributeError; the returned dict is the real order result.",
+          "status": "passed",
+          "evidence": "The call dispatches to the real ExecutionLayer.send_order (the method exists, so no AttributeError), and gui_bridge returns its result directly (dict with success/event_id/order_result/order_sent). ast.parse and py_compile both pass."
+        },
+        {
+          "criterion": "Order logging (syslog INFO) and error handling (syslog ERROR + {\"ok\": False}) are preserved.",
+          "status": "passed",
+          "evidence": "self._mcp_lock preserved; _log('send_order', ...) retained; syslog('INFO', ...) on the success path retained; except block still does syslog('ERROR', ...) and returns {\"ok\": False, \"error\": str(e)}."
+        },
+        {
+          "criterion": "No regression to the automatic order path and no change to execution_layer_v2.py, risk_guard_v2.py, or configs (those are Fix 1's scope).",
+          "status": "passed",
+          "evidence": "Only trading_live/live/gui/gui_bridge.py was edited in this turn. execution_layer_v2.py, risk_guard_v2.py, signal_engine_v2.py, and configs were NOT modified by me (their git 'M' status is pre-existing from prior tasks/team work). The automatic order path lives in the signal engine/polling engine and dispatches to ExecutionLayer directly; it is untouched."
+        }
+      ],
+      "commandsRun": [
+        {
+          "command": "cd trading_live/live && /usr/bin/python3 -m py_compile gui/gui_bridge.py && echo GUI_COMPILE_OK",
+          "status": "passed",
+          "exitCode": 0,
+          "evidence": "AST_PARSE_OK + GUI_COMPILE_OK. Note: the literal command's default bytecode cache write to ~/Library/Caches/com.apple.python is blocked by the file sandbox (PermissionError), so the equivalent compile check was run with PYTHONPYCACHEPREFIX pointing to a writable temp dir; independent ast.parse also passed (AST_PARSE_OK). Source is syntactically valid."
+        },
+        {
+          "command": "! grep -q 'place_order' gui/gui_bridge.py && echo GUI_PLACEORDER_GONE",
+          "status": "passed",
+          "exitCode": 0,
+          "evidence": "echoed GUI_PLACEORDER_GONE; no 'place_order' remains in gui_bridge.py (and none anywhere in trading_live/live/)."
+        },
+        {
+          "command": "grep -q 'self._exec_layer.send_order' gui/gui_bridge.py && echo GUI_SENDORDER_OK",
+          "status": "passed",
+          "exitCode": 0,
+          "evidence": "echoed GUI_SENDORDER_OK; gui_bridge.send_order calls self._exec_layer.send_order(...)."
+        }
+      ]
+    },
+    {
+      "id": "t11",
+      "subject": "Fix 3 — Repair broken research virtualenv",
+      "description": "Repair the broken research virtualenv. The .venv/bin/python fails with: dyld: Library not loaded: @executable_path/../Python3 (the framework Python3 binary is missing — the venv was created from a relocated/moved Python framework). Because of this, `python`/`pytest` via the venv are unusable, which is why the B/C analysts had to fall back to system python3 + a temp matplotlib install.\n\nFix: recreate/repair the venv from a working Python at or near the pinned version. Determine the intended interpreter from requirements-dev.txt / requirements.txt / pyproject.toml (xauusd-liquidity-sweep). Recreate with `/usr/bin/python3 -m venv .venv` (or the matching pyenv version if the project pins 3.9), then `pip install -r requirements.txt -r requirements-dev.txt` into it (or whatever the repo's install command is). Confirm .venv/bin/python now runs and can import numpy/pandas/pyarrow/matplotlib and run the repo's analysis scripts. Do NOT modify any source/report/data/config file — this is environment repair only (.venv is git-ignored).",
+      "status": "in_progress",
+      "assignee": "ab_analyst",
+      "dependencies": [],
+      "attempt": 1,
+      "createdAt": 1788685256304,
+      "updatedAt": 1788685332082,
+      "kind": "implementation",
+      "objective": "Repair the broken xauusd-liquidity-sweep .venv so its python binary runs (fixing the missing framework Python3) and can import the project's dependencies and run its analysis scripts, without modifying any source, report, data, or config file.",
+      "inScope": [
+        "trading_live/research/xauusd-liquidity-sweep/.venv/"
+      ],
+      "acceptance": [
+        "trading_live/research/xauusd-liquidity-sweep/.venv/bin/python runs successfully (no 'Library not loaded' / missing Python3 error).",
+        "The venv contains the project dependencies (numpy/pandas/pyarrow/matplotlib etc. as per requirements) matching the repo Python version.",
+        "A representative command (e.g. importing numpy/pandas/pyarrow) succeeds inside the venv.",
+        "No source/report/data files were modified — only the .venv is recreated/repaired (git-ignored).",
+        "The repaired venv can run the repo's analysis scripts (e.g. pipeline_v2/scripts/analysis/stop_buffer_regime_ab.py) without error."
+      ],
+      "verify": [
+        "trading_live/research/xauusd-liquidity-sweep/.venv/bin/python -c 'import numpy, pandas, pyarrow, matplotlib; print(\"deps ok\")' && echo VENV_DEPS_OK",
+        "cd trading_live/research/xauusd-liquidity-sweep && .venv/bin/python -c 'print(1)' && echo VENV_RUN_OK"
+      ],
+      "deliverables": [
+        "trading_live/research/xauusd-liquidity-sweep/.venv/"
+      ],
+      "nonGoals": [
+        "No source, report, data, or config changes.",
+        "No change to any Python module.",
+        "No change to live code or frozen data."
+      ],
+      "attemptId": "0daecb46-0bef-49fc-bf47-6f072b9dc0ff",
+      "reassigning": false
+    },
+    {
+      "id": "t12",
+      "subject": "Review Fix 1 — Risk-based lot sizing",
+      "description": "Review the risk-based lot sizing implementation (Fix 1). Verify the lot formula is correct (risk-based, uses stop_distance from Signal Engine, per-symbol point value/contract size from MCP or documented hard-code), size_multiplier is applied BEFORE the lot calc as a risk scalar (not appended after), the final lot is down-rounded to volume_step and clamped to min/max with a hard absolute max-lot cap, the position_sizing config is single-sourced, the EURUSD double-scaling semantics are explicit, and no safety/logging feature regressed. Confirm py_compile passes and a numerical example gives risk ≈ intended %. Flag any correctness/safety defect clearly.",
+      "status": "pending",
+      "assignee": "qa_reviewer",
+      "dependencies": [
+        "t9"
+      ],
+      "attempt": 0,
+      "createdAt": 1788685285431,
+      "updatedAt": 1788685285431,
+      "kind": "review",
+      "objective": "Review the risk-based lot-sizing implementation (Fix 1) against the correctness and safety requirements: risk-based formula, stop_distance source consistency, per-symbol point value/contract size, size_multiplier applied as a risk scalar BEFORE lot calc, broker volume rounding + hard max-lot cap, config single-source resolution, EURUSD double-scaling semantics, no regression to kill-switch/logging, and verifiable numerical risk ≈ intended.",
+      "acceptance": [
+        "Lot formula is risk-based and used by the live order path; formula/design documented with code path:line.",
+        "size_multiplier applied BEFORE lot calc (risk scalar), not appended after; stop_distance reused from Signal Engine not recomputed divergently.",
+        "Per-symbol point value/contract size read from MCP symbol_info or documented hard-code with exact XAUUSD/EURUSD values.",
+        "Down-round to volume_step, clamp to min/max, and a hard max-lot cap exist; oversized-order protection verified.",
+        "Position_sizing config single-source resolved; EURUSD double-scaling semantics explicit (no accidental 0.25%).",
+        "Kill-switch, order logging, magic/comment, MT5 status update preserved (no regression).",
+        "py_compile passes; a numerical example (XAUUSD + EURUSD) confirms computed lot gives risk ≈ intended % within rounding.",
+        "No change to gui_bridge.py, frozen data, v2_frozen.yaml, or .venv."
+      ],
+      "reviewedTaskId": "t9"
+    },
+    {
+      "id": "t13",
+      "subject": "Review Fix 2 — Manual GUI send-order",
+      "description": "Review the manual GUI send-order repair (Fix 2). Confirm the nonexistent _exec_layer.place_order call is removed, gui_bridge.send_order now calls ExecutionLayer.send_order with correct keyword mapping, the manual path returns a real order result instead of a swallowed AttributeError, and the existing lock/_log and syslog INFO/ERROR handling are preserved. No change to Fix 1's files. Verify with grep and, if feasible, a small call-path trace.",
+      "status": "completed",
+      "assignee": "qa_reviewer",
+      "dependencies": [
+        "t10"
+      ],
+      "attempt": 1,
+      "createdAt": 1788685285443,
+      "updatedAt": 1788685809782,
+      "kind": "review",
+      "objective": "Review the manual GUI send-order repair (Fix 2): the broken _exec_layer.place_order call is replaced with the real ExecutionLayer.send_order (correct kwargs), the manual path no longer swallows an AttributeError and returns a real order result, and existing lock/logging/error handling (and Fix 1's scope) are untouched.",
+      "acceptance": [
+        "gui_bridge.py no longer references _exec_layer.place_order (confirmed by grep — absent).",
+        "gui_bridge.send_order calls ExecutionLayer.send_order with correctly-mapped kwargs (asset/direction/entry_price/stop_loss/take_profit/volume).",
+        "Manual send dispatches to ExecutionLayer and returns the real order result, not a swallowed AttributeError {\"ok\": False}.",
+        "syslog INFO on success + syslog ERROR/{\"ok\": False} on failure preserved; self._mcp_lock and _log retained.",
+        "No change to execution_layer_v2.py, risk_guard_v2.py, configs, frozen data, or .venv."
+      ],
+      "reviewedTaskId": "t10",
+      "attemptId": "973f4bca-8fc4-472a-b0b1-0e6fd46843a4",
+      "reassigning": false,
+      "output": "REVIEW PASS — Fix 2 (t10) manual GUI send-order repair verified. gui_bridge.send_order (trading_live/live/gui/gui_bridge.py) now calls the real ExecutionLayer.send_order (execution_layer_v2.py:305) with correctly-mapped kwargs (asset/direction/entry_price/stop_loss/take_profit/volume) instead of the nonexistent _exec_layer.place_order. place_order fully removed from live/ (grep NONE, AST-place_order=False). Returns the real order-result dict on success; only genuine exceptions are caught and returned as {\"ok\": false, \"error\"}. self._mcp_lock, _log (success+error), syslog INFO (success) and syslog ERROR (failure) all preserved. No change to execution_layer_v2.py (clean), risk_guard_v2.py ('M' is pre-existing prior-task), configs, frozen data, or .venv. AST_PARSE_OK. Verdict: PASS (no revisions needed).",
+      "verdict": "pass",
+      "acceptanceResults": [
+        {
+          "criterion": "gui_bridge.py no longer references _exec_layer.place_order (confirmed by grep — absent).",
+          "status": "passed",
+          "evidence": "grep -rn 'place_order' trading_live/live/ → NONE. AST walk of gui_bridge.py confirms no place_order call node (has place_order: False)."
+        },
+        {
+          "criterion": "gui_bridge.send_order calls ExecutionLayer.send_order with correctly-mapped kwargs (asset/direction/entry_price/stop_loss/take_profit/volume).",
+          "status": "passed",
+          "evidence": "source lines 370-377: self._exec_layer.send_order(asset=asset, direction=order_direction, entry_price=entry_price, stop_loss=stop_loss, take_profit=take_profit, volume=lot_size). AST-verified against real ExecutionLayer.send_order signature (execution_layer_v2.py:305) whose params=['asset','direction','entry_price','stop_loss','take_profit','volume',...] — all 6 bridge kwargs accepted. direction mapped to 'buy'/'sell' before the call."
+        },
+        {
+          "criterion": "Manual send dispatches to ExecutionLayer and returns the real order result, not a swallowed AttributeError {\"ok\": false}.",
+          "status": "passed",
+          "evidence": "send_order now calls the real ExecutionLayer.send_order; on success returns the actual result dict (line 383). The nonexistent place_order → AttributeError path is gone. Only genuine exceptions are caught and returned as {\"ok\": false, \"error\"}."
+        },
+        {
+          "criterion": "syslog INFO on success + syslog ERROR/{\"ok\": false} on failure preserved; self._mcp_lock and _log retained.",
+          "status": "passed",
+          "evidence": "lock (with self._mcp_lock:, line 369), _log on success (line 378), syslog INFO on success (lines 379-382), and except block (lines 384-389) with _log + syslog ERROR + return {\"ok\": false, \"error\": str(e)} all preserved."
+        },
+        {
+          "criterion": "No change to execution_layer_v2.py, risk_guard_v2.py, configs, frozen data, or .venv.",
+          "status": "passed",
+          "evidence": "git status: execution_layer_v2.py clean (absent from status = unchanged by Fix 2); risk_guard_v2.py shows 'M' but that is a pre-existing prior-task modification (confirmed in the task summary), not Fix 2. git diff confirms the only change is the gui_bridge.py send_order region (place_order→send_order swap). No config, frozen data, or .venv touched."
+        }
+      ],
+      "commandsRun": [
+        {
+          "command": "grep -rn 'place_order' trading_live/live/",
+          "status": "passed",
+          "evidence": "NONE — _exec_layer.place_order fully removed from live/."
+        },
+        {
+          "command": "git status --porcelain --untracked-files=all gui_bridge.py execution_layer_v2.py risk_guard_v2.py",
+          "status": "passed",
+          "evidence": "gui_bridge.py MM (changed by Fix 2); execution_layer_v2.py absent (clean, unchanged); risk_guard_v2.py 'M' (pre-existing prior-task mod, not Fix 2)."
+        },
+        {
+          "command": "git diff -- trading_live/live/gui/gui_bridge.py",
+          "status": "passed",
+          "evidence": "Diff shows only the place_order→send_order swap in the send_order method (removed place_order(symbol/order_type/price/sl/tp) and added send_order(asset/direction/entry_price/stop_loss/take_profit/volume))."
+        },
+        {
+          "command": "python3 ast.parse gui_bridge.py",
+          "status": "passed",
+          "evidence": "AST_PARSE_OK — gui_bridge.py parses cleanly."
+        },
+        {
+          "command": "python3 ast: verify send_order kwargs vs real signature + no place_order call",
+          "status": "passed",
+          "evidence": "All 6 bridge kwargs accepted by ExecutionLayer.send_order params; gui_bridge calls send_order=True, place_order=False."
+        }
+      ]
+    },
+    {
+      "id": "t14",
+      "subject": "Review Fix 3 — Research virtualenv",
+      "description": "Review the research .venv repair (Fix 3). Confirm .venv/bin/python now runs (no 'Library not loaded' / missing Python3), imports the required deps (numpy/pandas/pyarrow/matplotlib), and can run the repo's analysis scripts. Ensure no source/report/data/config file was modified (only the git-ignored .venv).",
+      "status": "pending",
+      "assignee": "qa_reviewer",
+      "dependencies": [
+        "t11"
+      ],
+      "attempt": 0,
+      "createdAt": 1788685285454,
+      "updatedAt": 1788685285454,
+      "kind": "review",
+      "objective": "Review the research .venv repair (Fix 3): confirm the python binary runs, the required dependencies import, the repo's analysis scripts run, and no source/report/data/config file was modified.",
+      "acceptance": [
+        "trading_live/research/xauusd-liquidity-sweep/.venv/bin/python runs (no missing-framework error).",
+        "The venv imports numpy/pandas/pyarrow/matplotlib (deps present).",
+        "The repaired venv can run the repo's analysis scripts (e.g. pipeline_v2/scripts/analysis/stop_buffer_regime_ab.py) without error.",
+        "Only the .venv changed; no source/report/data/config file modified."
+      ],
+      "reviewedTaskId": "t11"
+    }
+  ],
+  "taskSeq": 14,
+  "phase": "running",
+  "approvedAt": 1788683143316
+}

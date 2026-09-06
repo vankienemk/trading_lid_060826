@@ -23,9 +23,9 @@
     }
   },
   "automation_levels": {
-    "BTCUSDm": 1,
-    "XAUUSDm": 0,
-    "EURUSDm": 0
+    "BTCUSDm": 2,
+    "XAUUSDm": 1,
+    "EURUSDm": 1
   },
   "version": 1
 }

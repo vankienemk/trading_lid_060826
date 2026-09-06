@@ -2,11 +2,13 @@
 gui_tab_onboarding.py — Tab 1: Symbol Onboarding
 
 Implements:
-  - Symbol registry table: Symbol | Status | Model đang dùng | Active | Actions
+  - Symbol registry table: Symbol | Status | Giá (Bid) | Model đang dùng |
+    Active | Risk (Size) | Actions
   - "Add New Symbol" dialog: QComboBox for MCP symbols + QComboBox for models
     + Browse local model button (custom path)
   - "Change Model" dialog for validated symbols
   - Activation / deactivation toggle
+  - Per-symbol risk setting (position size multiplier) for active symbols
   - Only validated/candidate/rejected statuses (no intermediate wizard steps)
 """
 
@@ -21,6 +23,7 @@ from PySide6.QtWidgets import (
     QComboBox,
     QDialog,
     QDialogButtonBox,
+    QDoubleSpinBox,
     QFileDialog,
     QHBoxLayout,
     QHeaderView,
@@ -44,7 +47,15 @@ from live.gui.gui_components import (
     ConfirmationDialog,
 )
 from live.gui.gui_bridge import SystemBridge
+from live.state.shared_app_state_v2 import (
+    MIN_POSITION_SIZE_MULTIPLIER,
+    MAX_POSITION_SIZE_MULTIPLIER,
+)
 from live.logging.logger_v2 import log as syslog
+
+# Shorter aliases used by the risk editor UI.
+MIN_RISK_MULTIPLIER = MIN_POSITION_SIZE_MULTIPLIER
+MAX_RISK_MULTIPLIER = MAX_POSITION_SIZE_MULTIPLIER
 
 
 # ---------------------------------------------------------------------------
@@ -84,6 +95,19 @@ def _style_dialog(dialog: QDialog) -> None:
             border-radius: 4px;
             padding: 4px 8px;
             min-height: 24px;
+        }}
+        QDoubleSpinBox {{
+            background-color: {COLOR_BG};
+            color: {COLOR_TEXT};
+            border: 1px solid #555555;
+            border-radius: 4px;
+            padding: 4px 8px;
+            min-height: 24px;
+        }}
+        QDoubleSpinBox::up-button, QDoubleSpinBox::down-button {{
+            background-color: #3a3a3a;
+            border: none;
+            width: 18px;
         }}
         QPushButton {{
             background-color: #3a3a3a;
@@ -218,18 +242,22 @@ class SymbolOnboardingTab(QWidget):
         btn_row.addStretch()
         layout.addLayout(btn_row)
 
-        # --- Symbol table: Symbol | Status | Giá (Bid) | Model đang dùng | Active | Actions ---
-        self._table = QTableWidget(0, 6)
+        # --- Symbol table: Symbol | Status | Giá (Bid) | Model đang dùng |
+        #                 Active | Risk (Size) | Actions ---
+        self._table = QTableWidget(0, 7)
         self._table.setAlternatingRowColors(True)
         self._table.setHorizontalHeaderLabels(
-            ["Symbol", "Status", "Giá (Bid)", "Model đang dùng", "Active", "Actions"]
+            ["Symbol", "Status", "Giá (Bid)", "Model đang dùng", "Active",
+             "Risk (Size)", "Actions"]
         )
         self._table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
         self._table.horizontalHeader().setSectionResizeMode(0, QHeaderView.Interactive)
         self._table.horizontalHeader().setSectionResizeMode(5, QHeaderView.Interactive)
+        self._table.horizontalHeader().setSectionResizeMode(6, QHeaderView.Interactive)
         self._table.setColumnWidth(0, 130)
         self._table.setColumnWidth(2, 100)
-        self._table.setColumnWidth(5, 350)
+        self._table.setColumnWidth(5, 130)
+        self._table.setColumnWidth(6, 350)
         self._table.verticalHeader().setVisible(False)
         self._table.setSelectionBehavior(QTableWidget.SelectRows)
         self._table.setSelectionMode(QTableWidget.SingleSelection)
@@ -297,7 +325,42 @@ class SymbolOnboardingTab(QWidget):
             )
             self._table.setItem(row, 4, active_item)
 
-            # Actions row
+            # Risk (Size) — column 5.  Active validated symbols get a "🛡 Risk"
+            # button (opens the position-size edit dialog); every other symbol
+            # shows its current multiplier read-only.
+            multiplier = float(cfg.get("position_size_multiplier", 1.0))
+            if cfg["status"] == "validated" and cfg.get("active", False):
+                risk_widget = QWidget()
+                risk_layout = QHBoxLayout(risk_widget)
+                risk_layout.setContentsMargins(4, 0, 4, 0)
+                risk_layout.setSpacing(4)
+                risk_btn = QPushButton(f"🛡 {multiplier:.1f}×")
+                risk_btn.setToolTip(
+                    f"Set position size risk for {name} "
+                    f"(order size = base × multiplier, current {multiplier:.1f}×)"
+                )
+                risk_btn.setStyleSheet(
+                    "background-color: #3a6ea5; color: white; padding: 2px 6px; "
+                    "font-weight: bold; font-size: 11px; border-radius: 4px;"
+                )
+                risk_btn.clicked.connect(
+                    lambda checked, s=name: self._on_set_risk(s)
+                )
+                risk_layout.addWidget(risk_btn)
+                risk_layout.addStretch()
+                self._table.setCellWidget(row, 5, risk_widget)
+            else:
+                risk_item = QTableWidgetItem(f"{multiplier:.1f}×")
+                if cfg["status"] == "candidate":
+                    risk_item.setForeground(QColor(COLOR_WARNING))
+                elif cfg["status"] == "rejected":
+                    risk_item.setForeground(QColor(COLOR_NEGATIVE))
+                else:  # validated but not active
+                    risk_item.setForeground(QColor(COLOR_NEUTRAL))
+                risk_item.setTextAlignment(Qt.AlignCenter)
+                self._table.setItem(row, 5, risk_item)
+
+            # Actions row (column 6)
             actions_widget = QWidget()
             actions_layout = QHBoxLayout(actions_widget)
             actions_layout.setContentsMargins(4, 0, 4, 0)
@@ -354,7 +417,7 @@ class SymbolOnboardingTab(QWidget):
             actions_layout.addWidget(remove_btn)
 
             actions_layout.addStretch()
-            self._table.setCellWidget(row, 5, actions_widget)
+            self._table.setCellWidget(row, 6, actions_widget)
 
         self._table.resizeRowsToContents()
 
@@ -759,6 +822,110 @@ class SymbolOnboardingTab(QWidget):
                    f"Status changed: {cfg.status} → {new_status}",
                    extra={"old_status": cfg.status, "new_status": new_status})
             self._refresh_symbols()
+
+    # ------------------------------------------------------------------
+    # Set Risk (position size multiplier)
+    # ------------------------------------------------------------------
+
+    def _on_set_risk(self, symbol: str) -> None:
+        """Open the position-size risk editor for an active validated symbol."""
+        cfg = self._bridge.state.get_symbol_config(symbol)
+        if cfg is None:
+            return
+        if cfg.status != "validated" or not cfg.active:
+            return
+
+        current = float(cfg.position_size_multiplier)
+
+        dialog = QDialog(self)
+        dialog.setWindowTitle(f"Set Risk — {symbol}")
+        dialog.setMinimumWidth(380)
+        _style_dialog(dialog)
+        layout = QVBoxLayout(dialog)
+        layout.setSpacing(12)
+
+        msg = QLabel(
+            f"Position-size risk multiplier for <b>{symbol}</b>\n"
+            f"(order size = <b>base × multiplier</b>, current: "
+            f"<b>{current:.1f}×</b>):"
+        )
+        msg.setWordWrap(True)
+        layout.addWidget(msg)
+
+        spin = QDoubleSpinBox()
+        spin.setRange(MIN_RISK_MULTIPLIER, MAX_RISK_MULTIPLIER)
+        spin.setDecimals(1)
+        spin.setSingleStep(0.1)
+        spin.setValue(current)
+        spin.setSuffix(" ×")
+        layout.addWidget(spin)
+
+        note = QLabel(
+            f"Allowed range: {MIN_RISK_MULTIPLIER:.1f}× – {MAX_RISK_MULTIPLIER:.1f}×. "
+            "This is the per-symbol risk the risk layer uses when sizing "
+            "orders (RiskGuard.get_position_size)."
+        )
+        note.setStyleSheet(f"color: {COLOR_NEUTRAL}; font-size: 11px;")
+        note.setWordWrap(True)
+        layout.addWidget(note)
+
+        button_box = QDialogButtonBox(QDialogButtonBox.Cancel | QDialogButtonBox.Ok)
+        confirm_btn = button_box.button(QDialogButtonBox.Ok)
+        confirm_btn.setText("Set Risk")
+        confirm_btn.setStyleSheet(
+            f"background-color: {COLOR_POSITIVE}; color: #1e1e1e; font-weight: bold;"
+        )
+        layout.addWidget(button_box)
+        button_box.accepted.connect(dialog.accept)
+        button_box.rejected.connect(dialog.reject)
+
+        if dialog.exec() == QDialog.Accepted:
+            self._apply_risk(symbol, current, spin.value())
+
+    def _apply_risk(self, symbol: str, old_multiplier: float, new_multiplier: float) -> None:
+        """Confirm and persist a risk-multiplier change for *symbol*."""
+        if abs(new_multiplier - old_multiplier) < 1e-9:
+            self._refresh_symbols()
+            return  # no change
+
+        dialog = ConfirmationDialog(
+            title="Confirm Risk Change",
+            message=(
+                f"Set position-size multiplier for <b>{symbol}</b> "
+                f"from <b>{old_multiplier:.1f}×</b> to <b>{new_multiplier:.1f}×</b>?\n\n"
+                "Future orders for this symbol will be sized at "
+                f"base × {new_multiplier:.1f}. The value is persisted and "
+                "survives restarts."
+            ),
+            confirm_text="✅ SAVE RISK",
+            parent=self,
+        )
+        if dialog.exec() != ConfirmationDialog.Accepted:
+            self._refresh_symbols()
+            return
+
+        ok = self._bridge.state.set_position_size_multiplier(symbol, new_multiplier)
+        if ok:
+            self._bridge.log_action("set_risk", {
+                "symbol": symbol,
+                "old_multiplier": old_multiplier,
+                "new_multiplier": new_multiplier,
+            })
+            syslog("INFO", "System", symbol,
+                   f"Position-size risk multiplier set: "
+                   f"{old_multiplier:.1f}× → {new_multiplier:.1f}×",
+                   extra={"old_multiplier": old_multiplier,
+                          "new_multiplier": new_multiplier})
+        else:
+            from PySide6.QtWidgets import QMessageBox
+            QMessageBox.warning(
+                self,
+                "Risk Update Failed",
+                f"Could not set multiplier {new_multiplier:.1f} for {symbol}. "
+                "Value must be between "
+                f"{MIN_RISK_MULTIPLIER:.1f} and {MAX_RISK_MULTIPLIER:.1f}.",
+            )
+        self._refresh_symbols()
 
     # ------------------------------------------------------------------
     # Remove Symbol

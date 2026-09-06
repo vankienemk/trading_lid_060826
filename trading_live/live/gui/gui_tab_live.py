@@ -4,6 +4,8 @@ gui_tab_live_control.py — Tab 2: Live Control
 Spec section 7.2 Tab 2:
   - Dropdown per symbol (only validated symbols)
   - Automation level switch (0/1/2) per symbol, displayed prominently
+  - Per-symbol signal statistics panel (Trigger / Found / Pass), live-updated
+    from SharedAppState counters with per-symbol and global reset
   - Pending signals table with Send Order / Skip buttons per row (Level 0 = manual)
   - Open positions table with P/L in R
   - Emergency Stop button always visible (rendered in gui_main.py, not here)
@@ -41,6 +43,7 @@ from live.gui.gui_components import (
     COLOR_NEUTRAL,
     COLOR_SURFACE,
     COLOR_TEXT,
+    COLOR_TEXT_SEC,
     ConfirmationDialog,
     fmt_time,
     fmt_r,
@@ -50,6 +53,31 @@ from live.gui.gui_bridge import SystemBridge
 
 class LiveControlTab(QWidget):
     """Tab 2: Live Control — signals, positions, automation."""
+
+    # Compact neutral button style for the statistics panel (dark theme).
+    _RESET_BTN_QSS = f"""
+    QPushButton {{
+        background-color: #333333;
+        color: {COLOR_TEXT};
+        border: 1px solid #555555;
+        border-radius: 4px;
+        padding: 3px 12px;
+        min-height: 20px;
+        font-weight: normal;
+    }}
+    QPushButton:hover {{
+        background-color: #444444;
+        border-color: {COLOR_TEXT_SEC};
+    }}
+    QPushButton:pressed {{
+        background-color: #555555;
+    }}
+    QPushButton:disabled {{
+        background-color: #2a2a2a;
+        color: #666666;
+        border-color: #3d3d3d;
+    }}
+    """
 
     def __init__(self, bridge: SystemBridge, parent: Optional[QWidget] = None) -> None:
         super().__init__(parent)
@@ -102,6 +130,38 @@ class LiveControlTab(QWidget):
         self._status_label = QLabel("Select a symbol above.")
         self._status_label.setStyleSheet(f"color: {COLOR_NEUTRAL};")
         layout.addWidget(self._status_label)
+
+        # --- Per-symbol signal statistics (Trigger / Found / Pass) ---
+        # Counters are recorded per symbol by the signal engine in
+        # SharedAppState (signal_stats) — this panel only displays them.
+        self._stats_group = QGroupBox("📊 Signal Statistics")
+        stats_row = QHBoxLayout(self._stats_group)
+        stats_row.setSpacing(12)
+
+        self._stats_label = QLabel("Trigger: — | Found: — | Pass: —")
+        self._stats_label.setTextFormat(Qt.TextFormat.RichText)
+        stats_row.addWidget(self._stats_label)
+        stats_row.addStretch()
+
+        self._reset_stats_btn = QPushButton("Reset Counters")
+        self._reset_stats_btn.setToolTip(
+            "Clear Trigger / Found / Pass counters for the selected symbol"
+        )
+        self._reset_stats_btn.setEnabled(False)
+        self._reset_stats_btn.clicked.connect(self._on_reset_stats)
+        self._reset_stats_btn.setStyleSheet(self._RESET_BTN_QSS)
+        stats_row.addWidget(self._reset_stats_btn)
+
+        self._reset_all_stats_btn = QPushButton("Reset All")
+        self._reset_all_stats_btn.setToolTip(
+            "Clear Trigger / Found / Pass counters for every symbol"
+        )
+        self._reset_all_stats_btn.setEnabled(False)
+        self._reset_all_stats_btn.clicked.connect(self._on_reset_all_stats)
+        self._reset_all_stats_btn.setStyleSheet(self._RESET_BTN_QSS)
+        stats_row.addWidget(self._reset_all_stats_btn)
+
+        layout.addWidget(self._stats_group)
 
         # --- Split: Pending Signals (left) | Open Positions (right) ---
         split_row = QHBoxLayout()
@@ -162,6 +222,7 @@ class LiveControlTab(QWidget):
                 self._current_symbol = symbols[0]
         else:
             self._symbol_combo.addItem("(no symbols)")
+            self._current_symbol = ""
 
         self._symbol_combo.blockSignals(False)
 
@@ -240,6 +301,10 @@ class LiveControlTab(QWidget):
 
     def _refresh_display(self, snap: Dict[str, Any]) -> None:
         """Refresh signals and positions tables from snapshot."""
+        # Statistics panel always refreshes (shows "—" while no symbol is
+        # selected / recorded); tables need a valid symbol.
+        self._refresh_stats(snap)
+
         if not self._current_symbol or self._current_symbol == "(no symbols)":
             return
         symbol = self._current_symbol
@@ -311,6 +376,93 @@ class LiveControlTab(QWidget):
             self._positions_table.setCellWidget(row, 7, close_btn)
 
     # ------------------------------------------------------------------
+    # Signal statistics panel (Trigger / Found / Pass)
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _lookup_stats_entry(stats: Dict[str, Any], symbol: str) -> Optional[Dict[str, int]]:
+        """Find a symbol's stats entry — exact key first, then case-insensitive.
+
+        Returns ``None`` when the symbol is empty or has never recorded stats.
+        """
+        if not symbol:
+            return None
+        entry = stats.get(symbol)
+        if entry is not None:
+            return entry
+        upper = symbol.upper()
+        for key, candidate in stats.items():
+            if key.upper() == upper:
+                return candidate
+        return None
+
+    @staticmethod
+    def _stats_html(trigger: Optional[int], found: Optional[int], passed: Optional[int]) -> str:
+        """Build the dark-theme rich-text stats line.
+
+        Format: ``Trigger: XXXX | Found: XXX | Pass: XX``; ``None`` values
+        render as an em dash ("—").
+        """
+        dash = "—"
+
+        def number(value: Optional[int], color: str) -> str:
+            return f'<b style="color:{color};">{dash if value is None else value}</b>'
+
+        sep = f'<span style="color:{COLOR_TEXT_SEC};"> &nbsp;|&nbsp; </span>'
+        return (
+            f'<span style="color:{COLOR_NEUTRAL};">Trigger: </span>'
+            f'{number(trigger, COLOR_TEXT)}'
+            + sep
+            + f'<span style="color:{COLOR_NEUTRAL};">Found: </span>'
+            f'{number(found, COLOR_TEXT)}'
+            + sep
+            + f'<span style="color:{COLOR_NEUTRAL};">Pass: </span>'
+            f'{number(passed, COLOR_POSITIVE)}'
+        )
+
+    def _refresh_stats(self, snap: Dict[str, Any]) -> None:
+        """Update the per-symbol statistics panel from a snapshot.
+
+        Reads ``snap["signal_stats"]`` — the thread-safe per-symbol counters
+        the signal engine records in SharedAppState — for the currently
+        selected symbol.  Pure GUI-thread read; nothing here mutates state.
+        Runs on every ``refresh_from_state`` timer tick, so the numbers
+        update live.
+        """
+        stats = snap.get("signal_stats", {}) or {}
+        symbol = self._current_symbol
+        entry = self._lookup_stats_entry(stats, symbol)
+
+        if entry is not None:
+            self._stats_label.setText(
+                self._stats_html(
+                    entry.get("trigger", 0),
+                    entry.get("found", 0),
+                    entry.get("pass", 0),
+                )
+            )
+        else:
+            # No symbol selected, or nothing recorded for it yet.
+            self._stats_label.setText(self._stats_html(None, None, None))
+
+        # Per-symbol reset only makes sense while this symbol has counters.
+        self._reset_stats_btn.setEnabled(entry is not None)
+
+        # "Reset All" is useful when any counters exist or any validated
+        # symbol is present (it is a harmless no-op otherwise).
+        registry = snap.get("symbol_registry", {}) or {}
+        has_validated = any(
+            isinstance(cfg, dict) and cfg.get("status") == "validated"
+            for cfg in registry.values()
+        )
+        self._reset_all_stats_btn.setEnabled(bool(stats) or has_validated)
+
+        # Keep the group title in sync with the selected symbol.
+        title = f"📊 Signal Statistics — {symbol}" if symbol else "📊 Signal Statistics"
+        if self._stats_group.title() != title:
+            self._stats_group.setTitle(title)
+
+    # ------------------------------------------------------------------
     # Actions
     # ------------------------------------------------------------------
 
@@ -343,3 +495,44 @@ class LiveControlTab(QWidget):
             self._bridge.close_position(position_id)
             self._bridge.log_action("close_position_click", {"position_id": position_id})
             self._status_label.setText(f"Position {position_id} closed.")
+
+    def _on_reset_stats(self) -> None:
+        """Reset the selected symbol's counters — confirmation required."""
+        symbol = self._current_symbol
+        if not symbol or symbol == "(no symbols)":
+            return
+        dialog = ConfirmationDialog(
+            title="Reset Signal Counters",
+            message=(
+                f"Reset <b>Trigger / Found / Pass</b> counters for "
+                f"<b>{symbol}</b>?\n\n"
+                "Only the displayed statistics are cleared — pending signals, "
+                "open positions and automation settings are not affected."
+            ),
+            confirm_text="✅ RESET",
+            parent=self,
+        )
+        if dialog.exec():
+            self._bridge.state.reset_signal_stats(symbol)
+            self._bridge.log_action("reset_signal_stats", {"symbol": symbol, "scope": "symbol"})
+            self._status_label.setText(f"Signal statistics reset for {symbol}")
+            self._refresh_stats(self._bridge.state.get_snapshot())
+
+    def _on_reset_all_stats(self) -> None:
+        """Reset counters for every symbol — confirmation required."""
+        dialog = ConfirmationDialog(
+            title="Reset All Signal Counters",
+            message=(
+                "Reset <b>Trigger / Found / Pass</b> counters for "
+                "<b>ALL symbols</b>?\n\n"
+                "Only the displayed statistics are cleared — pending signals, "
+                "open positions and automation settings are not affected."
+            ),
+            confirm_text="✅ RESET ALL",
+            parent=self,
+        )
+        if dialog.exec():
+            self._bridge.state.reset_signal_stats()  # symbol=None → every symbol
+            self._bridge.log_action("reset_signal_stats", {"symbol": "*", "scope": "all"})
+            self._status_label.setText("Signal statistics reset for all symbols")
+            self._refresh_stats(self._bridge.state.get_snapshot())

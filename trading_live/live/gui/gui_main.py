@@ -177,7 +177,12 @@ class MainWindow(QMainWindow):
         self._timer.start(1000)  # 1 second interval
 
     def _on_poll(self) -> None:
-        """Periodic poll: refresh state and update all tabs."""
+        """Periodic poll: signal-engine scan, refresh state, update all tabs."""
+        # Kick the background signal engine (registered-symbol scan where the
+        # Trigger/Found/Pass counters and pending signals are produced).  It
+        # runs on its own daemon thread — this never blocks the GUI.
+        self._bridge.poll_once()
+
         # Refresh from MCP in the background
         snap = self._bridge.refresh_state_from_mcp()
 
