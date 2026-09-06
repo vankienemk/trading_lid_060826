@@ -1,0 +1,559 @@
+{
+  "cost_levels": [
+    0.0,
+    0.01,
+    0.02,
+    0.03,
+    0.04,
+    0.05,
+    0.06,
+    0.07,
+    0.08,
+    0.09,
+    0.1
+  ],
+  "groups": {
+    "whole_pool": {
+      "n_net": 973,
+      "pre_cost": {
+        "n_net": 973,
+        "profit_factor": 1.0279,
+        "pf_ci95": [
+          0.8906,
+          1.1878
+        ],
+        "avg_net_r": 0.014,
+        "avg_net_r_ci95": [
+          -0.0577,
+          0.0885
+        ],
+        "net_positive_rate": 0.4224,
+        "net_positive_rate_wilson_ci95": [
+          0.3917,
+          0.4537
+        ]
+      },
+      "breakeven_cost_pf": 0.014,
+      "expectancy_breakeven_cost": 0.014,
+      "post_at_costs": {
+        "0.00": {
+          "cost_r": 0.0,
+          "profit_factor": 1.0279,
+          "pf_ci95": [
+            0.8922,
+            1.1853
+          ],
+          "avg_net_r": 0.014,
+          "avg_net_r_ci95": [
+            -0.0591,
+            0.0876
+          ],
+          "net_positive_rate": 0.4224
+        },
+        "0.01": {
+          "cost_r": 0.01,
+          "profit_factor": 1.0079,
+          "pf_ci95": [
+            0.8712,
+            1.1619
+          ],
+          "avg_net_r": 0.004,
+          "avg_net_r_ci95": [
+            -0.0681,
+            0.0776
+          ],
+          "net_positive_rate": 0.4203
+        },
+        "0.02": {
+          "cost_r": 0.02,
+          "profit_factor": 0.9883,
+          "pf_ci95": [
+            0.8554,
+            1.1401
+          ],
+          "avg_net_r": -0.006,
+          "avg_net_r_ci95": [
+            -0.0791,
+            0.0663
+          ],
+          "net_positive_rate": 0.4193
+        },
+        "0.03": {
+          "cost_r": 0.03,
+          "profit_factor": 0.9692,
+          "pf_ci95": [
+            0.8371,
+            1.1151
+          ],
+          "avg_net_r": -0.016,
+          "avg_net_r_ci95": [
+            -0.0911,
+            0.0562
+          ],
+          "net_positive_rate": 0.4162
+        },
+        "0.04": {
+          "cost_r": 0.04,
+          "profit_factor": 0.9505,
+          "pf_ci95": [
+            0.8168,
+            1.0928
+          ],
+          "avg_net_r": -0.026,
+          "avg_net_r_ci95": [
+            -0.0966,
+            0.0465
+          ],
+          "net_positive_rate": 0.4152
+        },
+        "0.05": {
+          "cost_r": 0.05,
+          "profit_factor": 0.9322,
+          "pf_ci95": [
+            0.81,
+            1.0727
+          ],
+          "avg_net_r": -0.036,
+          "avg_net_r_ci95": [
+            -0.1098,
+            0.0349
+          ],
+          "net_positive_rate": 0.4132
+        },
+        "0.06": {
+          "cost_r": 0.06,
+          "profit_factor": 0.9144,
+          "pf_ci95": [
+            0.7882,
+            1.049
+          ],
+          "avg_net_r": -0.046,
+          "avg_net_r_ci95": [
+            -0.119,
+            0.0281
+          ],
+          "net_positive_rate": 0.4121
+        },
+        "0.07": {
+          "cost_r": 0.07,
+          "profit_factor": 0.8969,
+          "pf_ci95": [
+            0.774,
+            1.0345
+          ],
+          "avg_net_r": -0.056,
+          "avg_net_r_ci95": [
+            -0.1256,
+            0.0184
+          ],
+          "net_positive_rate": 0.409
+        },
+        "0.08": {
+          "cost_r": 0.08,
+          "profit_factor": 0.8798,
+          "pf_ci95": [
+            0.7647,
+            1.0162
+          ],
+          "avg_net_r": -0.066,
+          "avg_net_r_ci95": [
+            -0.1379,
+            0.0091
+          ],
+          "net_positive_rate": 0.407
+        },
+        "0.09": {
+          "cost_r": 0.09,
+          "profit_factor": 0.863,
+          "pf_ci95": [
+            0.7463,
+            0.9984
+          ],
+          "avg_net_r": -0.076,
+          "avg_net_r_ci95": [
+            -0.1485,
+            -0.0041
+          ],
+          "net_positive_rate": 0.406
+        },
+        "0.10": {
+          "cost_r": 0.1,
+          "profit_factor": 0.8467,
+          "pf_ci95": [
+            0.7325,
+            0.9735
+          ],
+          "avg_net_r": -0.086,
+          "avg_net_r_ci95": [
+            -0.159,
+            -0.0132
+          ],
+          "net_positive_rate": 0.4049
+        }
+      }
+    },
+    "rule_40_49": {
+      "n_net": 188,
+      "pre_cost": {
+        "n_net": 188,
+        "profit_factor": 1.23,
+        "pf_ci95": [
+          0.8671,
+          1.705
+        ],
+        "avg_net_r": 0.0919,
+        "avg_net_r_ci95": [
+          -0.058,
+          0.2482
+        ],
+        "net_positive_rate": 0.4894,
+        "net_positive_rate_wilson_ci95": [
+          0.4188,
+          0.5603
+        ]
+      },
+      "breakeven_cost_pf": 0.0919,
+      "expectancy_breakeven_cost": 0.0919,
+      "post_at_costs": {
+        "0.00": {
+          "cost_r": 0.0,
+          "profit_factor": 1.23,
+          "pf_ci95": [
+            0.875,
+            1.7197
+          ],
+          "avg_net_r": 0.0919,
+          "avg_net_r_ci95": [
+            -0.0591,
+            0.2444
+          ],
+          "net_positive_rate": 0.4894
+        },
+        "0.01": {
+          "cost_r": 0.01,
+          "profit_factor": 1.2024,
+          "pf_ci95": [
+            0.8513,
+            1.6697
+          ],
+          "avg_net_r": 0.0819,
+          "avg_net_r_ci95": [
+            -0.0669,
+            0.2343
+          ],
+          "net_positive_rate": 0.4894
+        },
+        "0.02": {
+          "cost_r": 0.02,
+          "profit_factor": 1.1755,
+          "pf_ci95": [
+            0.8363,
+            1.6309
+          ],
+          "avg_net_r": 0.0719,
+          "avg_net_r_ci95": [
+            -0.0851,
+            0.2272
+          ],
+          "net_positive_rate": 0.4894
+        },
+        "0.03": {
+          "cost_r": 0.03,
+          "profit_factor": 1.1492,
+          "pf_ci95": [
+            0.7996,
+            1.603
+          ],
+          "avg_net_r": 0.0619,
+          "avg_net_r_ci95": [
+            -0.0878,
+            0.2128
+          ],
+          "net_positive_rate": 0.484
+        },
+        "0.04": {
+          "cost_r": 0.04,
+          "profit_factor": 1.1236,
+          "pf_ci95": [
+            0.8028,
+            1.5611
+          ],
+          "avg_net_r": 0.0519,
+          "avg_net_r_ci95": [
+            -0.0966,
+            0.2087
+          ],
+          "net_positive_rate": 0.484
+        },
+        "0.05": {
+          "cost_r": 0.05,
+          "profit_factor": 1.0986,
+          "pf_ci95": [
+            0.7753,
+            1.5436
+          ],
+          "avg_net_r": 0.0419,
+          "avg_net_r_ci95": [
+            -0.107,
+            0.1986
+          ],
+          "net_positive_rate": 0.484
+        },
+        "0.06": {
+          "cost_r": 0.06,
+          "profit_factor": 1.0742,
+          "pf_ci95": [
+            0.7582,
+            1.5032
+          ],
+          "avg_net_r": 0.0319,
+          "avg_net_r_ci95": [
+            -0.1254,
+            0.1881
+          ],
+          "net_positive_rate": 0.484
+        },
+        "0.07": {
+          "cost_r": 0.07,
+          "profit_factor": 1.0504,
+          "pf_ci95": [
+            0.7261,
+            1.4793
+          ],
+          "avg_net_r": 0.0219,
+          "avg_net_r_ci95": [
+            -0.1275,
+            0.1775
+          ],
+          "net_positive_rate": 0.484
+        },
+        "0.08": {
+          "cost_r": 0.08,
+          "profit_factor": 1.0271,
+          "pf_ci95": [
+            0.7243,
+            1.4356
+          ],
+          "avg_net_r": 0.0119,
+          "avg_net_r_ci95": [
+            -0.1402,
+            0.1662
+          ],
+          "net_positive_rate": 0.4787
+        },
+        "0.09": {
+          "cost_r": 0.09,
+          "profit_factor": 1.0044,
+          "pf_ci95": [
+            0.7067,
+            1.3967
+          ],
+          "avg_net_r": 0.0019,
+          "avg_net_r_ci95": [
+            -0.1407,
+            0.1551
+          ],
+          "net_positive_rate": 0.4787
+        },
+        "0.10": {
+          "cost_r": 0.1,
+          "profit_factor": 0.9822,
+          "pf_ci95": [
+            0.7026,
+            1.369
+          ],
+          "avg_net_r": -0.0081,
+          "avg_net_r_ci95": [
+            -0.1635,
+            0.1438
+          ],
+          "net_positive_rate": 0.4787
+        }
+      }
+    },
+    "top_prob_ge_0.25": {
+      "n_net": 223,
+      "pre_cost": {
+        "n_net": 223,
+        "profit_factor": 1.3045,
+        "pf_ci95": [
+          0.9803,
+          1.7393
+        ],
+        "avg_net_r": 0.1619,
+        "avg_net_r_ci95": [
+          -0.0126,
+          0.3338
+        ],
+        "net_positive_rate": 0.4395,
+        "net_positive_rate_wilson_ci95": [
+          0.3759,
+          0.5051
+        ]
+      },
+      "breakeven_cost_pf": 0.1619,
+      "expectancy_breakeven_cost": 0.1619,
+      "post_at_costs": {
+        "0.00": {
+          "cost_r": 0.0,
+          "profit_factor": 1.3045,
+          "pf_ci95": [
+            0.9781,
+            1.7078
+          ],
+          "avg_net_r": 0.1619,
+          "avg_net_r_ci95": [
+            -0.0038,
+            0.3299
+          ],
+          "net_positive_rate": 0.4395
+        },
+        "0.01": {
+          "cost_r": 0.01,
+          "profit_factor": 1.2827,
+          "pf_ci95": [
+            0.9766,
+            1.6668
+          ],
+          "avg_net_r": 0.1519,
+          "avg_net_r_ci95": [
+            -0.0242,
+            0.3267
+          ],
+          "net_positive_rate": 0.4395
+        },
+        "0.02": {
+          "cost_r": 0.02,
+          "profit_factor": 1.2614,
+          "pf_ci95": [
+            0.9454,
+            1.6627
+          ],
+          "avg_net_r": 0.1419,
+          "avg_net_r_ci95": [
+            -0.0221,
+            0.3156
+          ],
+          "net_positive_rate": 0.4395
+        },
+        "0.03": {
+          "cost_r": 0.03,
+          "profit_factor": 1.2405,
+          "pf_ci95": [
+            0.9479,
+            1.6305
+          ],
+          "avg_net_r": 0.1319,
+          "avg_net_r_ci95": [
+            -0.0391,
+            0.312
+          ],
+          "net_positive_rate": 0.435
+        },
+        "0.04": {
+          "cost_r": 0.04,
+          "profit_factor": 1.22,
+          "pf_ci95": [
+            0.9205,
+            1.6168
+          ],
+          "avg_net_r": 0.1219,
+          "avg_net_r_ci95": [
+            -0.0543,
+            0.299
+          ],
+          "net_positive_rate": 0.435
+        },
+        "0.05": {
+          "cost_r": 0.05,
+          "profit_factor": 1.1999,
+          "pf_ci95": [
+            0.8945,
+            1.5826
+          ],
+          "avg_net_r": 0.1119,
+          "avg_net_r_ci95": [
+            -0.0597,
+            0.2911
+          ],
+          "net_positive_rate": 0.435
+        },
+        "0.06": {
+          "cost_r": 0.06,
+          "profit_factor": 1.1802,
+          "pf_ci95": [
+            0.8886,
+            1.5704
+          ],
+          "avg_net_r": 0.1019,
+          "avg_net_r_ci95": [
+            -0.0706,
+            0.2872
+          ],
+          "net_positive_rate": 0.435
+        },
+        "0.07": {
+          "cost_r": 0.07,
+          "profit_factor": 1.1609,
+          "pf_ci95": [
+            0.8714,
+            1.5499
+          ],
+          "avg_net_r": 0.0919,
+          "avg_net_r_ci95": [
+            -0.0753,
+            0.2674
+          ],
+          "net_positive_rate": 0.4305
+        },
+        "0.08": {
+          "cost_r": 0.08,
+          "profit_factor": 1.142,
+          "pf_ci95": [
+            0.8666,
+            1.4996
+          ],
+          "avg_net_r": 0.0819,
+          "avg_net_r_ci95": [
+            -0.0914,
+            0.258
+          ],
+          "net_positive_rate": 0.4305
+        },
+        "0.09": {
+          "cost_r": 0.09,
+          "profit_factor": 1.1234,
+          "pf_ci95": [
+            0.8441,
+            1.4793
+          ],
+          "avg_net_r": 0.0719,
+          "avg_net_r_ci95": [
+            -0.1001,
+            0.2435
+          ],
+          "net_positive_rate": 0.4305
+        },
+        "0.10": {
+          "cost_r": 0.1,
+          "profit_factor": 1.1052,
+          "pf_ci95": [
+            0.8305,
+            1.4502
+          ],
+          "avg_net_r": 0.0619,
+          "avg_net_r_ci95": [
+            -0.1151,
+            0.2339
+          ],
+          "net_positive_rate": 0.4305
+        }
+      }
+    }
+  },
+  "breakeven_summary": {
+    "whole_pool": 0.014,
+    "rule_40_49": 0.0919,
+    "top_prob_ge_0.25": 0.1619
+  }
+}

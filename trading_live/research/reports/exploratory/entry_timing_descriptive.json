@@ -1,0 +1,85 @@
+{
+  "n_total_events": 974,
+  "n_no_entry_pos": 0,
+  "primary_reward_r": 2.0,
+  "primary_horizon": 16,
+  "same_bar_policy": "ambiguous",
+  "time_barrier_result": "mark_to_market",
+  "cost_r": 0.0,
+  "pullback_frac": 0.4,
+  "pullback_window_bars": 2,
+  "modes": {
+    "baseline": {
+      "n_fillable": 974,
+      "n_valid": 973,
+      "n_excluded_ambiguous": 1,
+      "fill_rate_pct": 100.0,
+      "pf": 1.0278659880394991,
+      "avg_net_r": 0.01399396601566577,
+      "avg_risk_ratio_vs_real": 1.0,
+      "win_rate": 0.4224049331963001,
+      "pf_ci95": [
+        0.8897767444006152,
+        1.1855480631370168
+      ]
+    },
+    "A": {
+      "n_fillable": 392,
+      "n_valid": 389,
+      "n_excluded_ambiguous": 3,
+      "fill_rate_pct": 40.24640657084189,
+      "pf": 0.8569163659280176,
+      "avg_net_r": -0.09391950204895573,
+      "avg_risk_ratio_vs_real": 0.6,
+      "win_rate": 0.32904884318766064,
+      "pf_ci95": [
+        0.6815619887062402,
+        1.0556912300799595
+      ]
+    },
+    "B": {
+      "n_fillable": 974,
+      "n_valid": 962,
+      "n_excluded_ambiguous": 12,
+      "fill_rate_pct": 100.0,
+      "pf": 0.9603665701254012,
+      "avg_net_r": -0.020077694018652316,
+      "avg_risk_ratio_vs_real": 1.018561279370135,
+      "win_rate": 0.40332640332640335,
+      "pf_ci95": [
+        0.8302525775409456,
+        1.11143146522804
+      ]
+    }
+  },
+  "sensitivity_A": {
+    "pullback_30pct": {
+      "n_fillable": 511,
+      "n_valid": 509,
+      "n_excluded_ambiguous": 2,
+      "fill_rate_pct": 52.46406570841889,
+      "pf": 0.9342055734641104,
+      "avg_net_r": -0.040175681225134534,
+      "avg_risk_ratio_vs_real": 0.7000000000000004,
+      "win_rate": 0.36345776031434185,
+      "pf_ci95": [
+        NaN,
+        NaN
+      ]
+    },
+    "pullback_50pct": {
+      "n_fillable": 307,
+      "n_valid": 304,
+      "n_excluded_ambiguous": 3,
+      "fill_rate_pct": 31.519507186858316,
+      "pf": 0.9405815743281581,
+      "avg_net_r": -0.03906823556942609,
+      "avg_risk_ratio_vs_real": 0.5000000000000001,
+      "win_rate": 0.33881578947368424,
+      "pf_ci95": [
+        NaN,
+        NaN
+      ]
+    }
+  }
+}

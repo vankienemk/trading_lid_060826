@@ -1,0 +1,47 @@
+{
+  "round": 2,
+  "n_reviewed": 160,
+  "verdicts": {
+    "incorrect": 79,
+    "ambiguous": 41,
+    "correct": 40
+  },
+  "by_source": {
+    "level_sweep": 88,
+    "confirmed": 72
+  },
+  "confirmed_delay": {
+    "n_confirmed": 72,
+    "mean_delay_bars": 1.7638888888888888,
+    "median_delay_bars": 2.0,
+    "p90_delay_bars": 3.0,
+    "max_delay_bars": 3.0,
+    "share_delay_at_max": 0.2222222222222222
+  },
+  "level_sweep_by_type": [
+    {
+      "level_type": "equal",
+      "n": 29,
+      "n_pass": 8,
+      "n_incorrect": 21
+    },
+    {
+      "level_type": "prev_day",
+      "n": 28,
+      "n_pass": 9,
+      "n_incorrect": 18
+    },
+    {
+      "level_type": "swing",
+      "n": 31,
+      "n_pass": 12,
+      "n_incorrect": 20
+    }
+  ],
+  "directions": {
+    "long": 82,
+    "short": 78
+  },
+  "reviewer": "agent_5",
+  "note": "Agent-5 automated first-pass screening (Phase 5b). Level-sweep rows come from the causal level registry (first_swept_at); detector_pass mirrors the round-1 baseline sweep-quality rules and flags new-level false-positive candidates. Confirmation delay checks target confirmed events. Final bias sign-off: Agent 7 (t11/t15). Detector changes: none."
+}

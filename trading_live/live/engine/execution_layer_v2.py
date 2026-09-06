@@ -154,6 +154,7 @@ class ExecutionLayer:
         self._session_initialized: bool = False
         self._token_lock = threading.Lock()
         self.state = get_state()
+        self._symbol_config_cache: Dict[str, dict] = {}
         self._polling_active = True
         self._poll_thread = threading.Thread(target=self._position_poll_loop,
                                              daemon=True, name="el-pos-poll")
@@ -161,6 +162,158 @@ class ExecutionLayer:
         syslog("INFO", "Execution", "",
                f"ExecutionLayer initialized: endpoint={self.endpoint}, auto_reconnect={auto_reconnect}",
                extra={"endpoint": self.endpoint, "auto_reconnect": auto_reconnect})
+
+    # ------------------------------------------------------------------
+    # Risk-based lot sizing
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _base_symbol(asset: str) -> str:
+        """Strip the MT5 'm' market suffix so the per-symbol YAML key is found."""
+        return asset[:-1] if asset.endswith("m") else asset
+
+    def _load_symbol_config(self, asset: str) -> dict:
+        """Load the canonical per-symbol YAML (cached).  Returns {} on failure."""
+        base = self._base_symbol(asset)
+        if base in self._symbol_config_cache:
+            return self._symbol_config_cache[base]
+        cfg: dict = {}
+        try:
+            path = Path(SYMBOL_CONFIG_DIR) / f"{base}.yaml"
+            if path.exists():
+                with open(path, "r", encoding="utf-8") as f:
+                    loaded = yaml.safe_load(f)
+                if isinstance(loaded, dict):
+                    cfg = loaded
+        except Exception:
+            cfg = {}
+        self._symbol_config_cache[base] = cfg
+        return cfg
+
+    def _symbol_risk_params(self, asset: str) -> dict:
+        """Resolve per-symbol risk sizing params (canonical yaml + MCP, then fallback)."""
+        cfg = self._load_symbol_config(asset)
+        ps = cfg.get("position_sizing", {}) if isinstance(cfg, dict) else {}
+        broker = cfg.get("broker", {}) if isinstance(cfg, dict) else {}
+        base = self._base_symbol(asset)
+
+        risk_percent = float(ps.get("risk_per_trade_pct", 0.0) or 0.0)
+        base_multiplier = float(ps.get("base_multiplier", 1.0) or 1.0)
+        volume_min = ps.get("min_position_size_lots")
+        volume_max = ps.get("max_position_size_lots")
+        volume_step = broker.get("volume_step", _DEFAULT_VOLUME_STEP)
+
+        # Per-symbol point value / contract size: prefer MCP symbol_info
+        # (contract_size/trade_contract_size + tick_value/tick_size), else the
+        # documented hard-code table (standard MT5 contract specs).
+        contract_size: Optional[float] = None
+        point_value: Optional[float] = None
+        mcp_info: dict = {}
+        try:
+            info = self.get_symbol_info(asset)
+            if isinstance(info, dict):
+                mcp_info = info
+        except Exception:
+            mcp_info = {}
+
+        contract_size = mcp_info.get("trade_contract_size",
+                                     mcp_info.get("contract_size"))
+        tick_value = mcp_info.get("tick_value")
+        tick_size = mcp_info.get("tick_size")
+        if contract_size is None:
+            contract_size = mcp_info.get("volume", 0) or None
+        if contract_size is not None:
+            try:
+                contract_size = float(contract_size)
+            except (TypeError, ValueError):
+                contract_size = None
+        if tick_value is not None and tick_size:
+            try:
+                point_value = float(tick_value) / float(tick_size)
+            except (TypeError, ValueError, ZeroDivisionError):
+                point_value = None
+        # Documented fallback (exact XAUUSD / EURUSD values; see module doc).
+        if contract_size is None or point_value is None:
+            spec = _DOCUMENTED_CONTRACT_SPECS.get(base, {})
+            if contract_size is None:
+                contract_size = spec.get("contract_size")
+            if point_value is None:
+                point_value = spec.get("point_value")
+
+        # volume_step from MCP if present, else default.
+        mcp_step = mcp_info.get("volume_step")
+        if mcp_step is not None:
+            try:
+                volume_step = float(mcp_step)
+            except (TypeError, ValueError):
+                pass
+        if volume_step is None or float(volume_step) <= 0:
+            volume_step = _DEFAULT_VOLUME_STEP
+
+        if volume_min is None:
+            volume_min = _DEFAULT_VOLUME_MIN
+        if volume_max is None:
+            volume_max = float(ps.get("max_position_size_lots")) if ps.get("max_position_size_lots") else HARD_MAX_LOT_CAP
+
+        return {
+            "risk_percent": risk_percent,
+            "base_multiplier": base_multiplier,
+            "contract_size": contract_size,
+            "point_value": point_value,
+            "volume_step": float(volume_step),
+            "volume_min": float(volume_min),
+            "volume_max": float(volume_max) if volume_max is not None else HARD_MAX_LOT_CAP,
+            "max_lot_cap": float(ps.get("max_position_size_lots")) if ps.get("max_position_size_lots") else HARD_MAX_LOT_CAP,
+        }
+
+    def _get_balance(self) -> Optional[float]:
+        """Current account balance from MT5 status cache, else a live fetch."""
+        try:
+            acct = getattr(self.state, "mt5_status", None)
+            if acct is not None:
+                b = acct.account_info.get("balance") if isinstance(acct.account_info, dict) else None
+                if b:
+                    return float(b)
+        except Exception:
+            pass
+        try:
+            info = self.get_account_info()
+            if isinstance(info, dict):
+                b = info.get("balance")
+                if b:
+                    return float(b)
+        except Exception:
+            pass
+        return None
+
+    def compute_risk_lot(self, asset: str, entry_price: Optional[float],
+                         stop_price: Optional[float]) -> Optional[float]:
+        """Compute the risk-based lot for a symbol given its entry & stop.
+
+        stop_distance (=|entry - stop|) is supplied by the caller exactly as
+        computed once in the Signal Engine — it is NOT recomputed divergently
+        here.  Returns None when inputs are missing (caller falls back safely).
+        """
+        if entry_price is None or stop_price is None:
+            return None
+        stop_distance = abs(float(entry_price) - float(stop_price))
+        params = self._symbol_risk_params(asset)
+        balance = self._get_balance()
+        if balance is None:
+            return None
+        lot = risk_based_lot(
+            balance=balance,
+            risk_percent=params["risk_percent"],
+            base_multiplier=params["base_multiplier"],
+            stop_distance=stop_distance,
+            point_value=params["point_value"],
+            contract_size=params["contract_size"],
+            volume_step=params["volume_step"],
+            volume_min=params["volume_min"],
+            volume_max=params["volume_max"],
+            max_lot_cap=params["max_lot_cap"],
+        )
+        return lot
 
     def set_token(self, token: str) -> None:
         """Set the MCP authentication token dynamically (GUI callable)."""
@@ -385,7 +538,7 @@ class ExecutionLayer:
 
     def send_order(self, asset: str, direction: str,
                    entry_price: float, stop_loss: float,
-                   take_profit: float, volume: float = 0.01,
+                   take_profit: float, volume: Optional[float] = None,
                    signal_id: Optional[str] = None,
                    rule_score: float = 0.0,
                    model_probability: float = 0.0,
@@ -393,8 +546,15 @@ class ExecutionLayer:
                    kill_switch_blocking: bool = False) -> Dict[str, Any]:
         """Send market order to MT5 via MCP.
 
-        Flow: check kill-switch, log BEFORE order, send with magic=20791
-        and comment=LSW-V2-{event_id}, update log on success.
+        Risk-based lot sizing: when ``volume`` is not provided (the automated
+        path), the lot is computed from the account risk budget per trade via
+        :meth:`compute_risk_lot` (lot = balance x risk% x multiplier /
+        (stop_distance x point_value x contract_size)).  When ``volume`` IS
+        provided it is honoured (e.g. explicit manual sizing).
+
+        Flow: kill-switch check -> risk-lot sizing -> log BEFORE order ->
+        send with magic=20791 and comment=LSW-V2-{event_id}, update log on
+        success.
         """
         eid = signal_id if signal_id else str(uuid.uuid4())
         now_iso = datetime.now(timezone.utc).isoformat()
@@ -404,13 +564,33 @@ class ExecutionLayer:
         if ks and ks.active:
             raise OrderRejectedError(f"Order blocked by kill-switch: {ks.reason}")
 
-        # 2. Log BEFORE sending order
+        # 2. Risk-based lot sizing (skipped when an explicit volume is given).
+        risk_lot: Optional[float] = None
+        lot_source: str = "explicit"
+        if volume is None:
+            risk_lot = self.compute_risk_lot(asset, entry_price, stop_loss)
+            if risk_lot is not None:
+                volume = risk_lot
+                lot_source = "risk"
+            else:
+                # Cannot size by risk (no balance / missing params) — fall back
+                # to the configured minimum so we never block a signal outright.
+                params = self._symbol_risk_params(asset)
+                volume = float(params.get("volume_min", _DEFAULT_VOLUME_MIN))
+                lot_source = "fallback"
+                syslog("WARNING", "Execution", asset,
+                       f"Risk-based lot could not be computed (balance/params missing); "
+                       f"falling back to volume_min={volume}",
+                       extra={"event_id": eid, "asset": asset})
+
+        # 3. Log BEFORE sending order
         order_type_str = "buy" if direction.lower() == "buy" else "sell"
         comment = f"LSW-V2-{eid}"
         paper_logger.log_signal(
             asset=asset, signal_time=now_iso, confirmation_time=now_iso,
             features_json=json.dumps({
                 "direction": order_type_str, "volume": volume,
+                "risk_lot": risk_lot, "lot_source": lot_source,
                 "comment": comment, "entry_price": entry_price,
                 "stop_loss": stop_loss, "take_profit": take_profit,
             }),
@@ -422,7 +602,7 @@ class ExecutionLayer:
             event_id=eid,
         )
 
-        # 3. Send order with magic=20791 and LSW-V2 comment
+        # 4. Send order with magic=20791 and LSW-V2 comment
         order_type = 0 if direction.lower() == "buy" else 1
         order_params = {
             "symbol": asset, "volume": volume,
@@ -460,7 +640,8 @@ class ExecutionLayer:
                    f"Order sent → order_id={eid}, entry={entry_actual:.2f}, SL={stop_loss:.2f}, TP={take_profit:.2f}",
                    extra={"event_id": eid, "direction": order_type_str,
                           "entry": entry_actual, "sl": stop_loss, "tp": take_profit,
-                          "volume": volume, "slippage": round(slippage, 2)})
+                          "volume": volume, "risk_lot": risk_lot,
+                          "slippage": round(slippage, 2)})
         else:
             error_msg = order_result.get("error",
                          order_result.get("comment", "Unknown error"))
@@ -470,7 +651,32 @@ class ExecutionLayer:
                           "entry": entry_price, "order_result": str(order_result)})
 
         return {"success": order_sent, "event_id": eid,
-                "order_result": order_result, "order_sent": order_sent}
+                "order_result": order_result, "order_sent": order_sent,
+                "volume": volume, "risk_lot": risk_lot, "lot_source": lot_source}
+
+    def place_order(self, symbol: str, order_type: str, volume: float = 0.01,
+                    price: float = 0.0, sl: float = 0.0, tp: float = 0.0,
+                    comment: str = "", magic: int = MAGIC_NUMBER) -> Dict[str, Any]:
+        """Place a market order, sizing the lot from account risk (shared path).
+
+        This is the entry point used by the manual GUI bridge (gui_bridge calls
+        ``_exec_layer.place_order(symbol=..., order_type=..., price=..., sl=...,
+        tp=...)``).  The lot is ALWAYS recomputed from the account risk budget
+        using the same :meth:`compute_risk_lot` routine as the automated path,
+        so manual and automated orders share identical risk sizing.  ``volume``
+        is accepted for signature compatibility but overridden by the risk lot.
+        """
+        direction = "buy" if str(order_type).lower() in ("buy", "0") else "sell"
+        risk_lot = self.compute_risk_lot(symbol, price, sl)
+        final_volume = risk_lot if risk_lot is not None else float(volume)
+        if risk_lot is None:
+            syslog("WARNING", "Execution", symbol,
+                   f"place_order: risk lot unavailable; using passed volume={final_volume}",
+                   extra={"symbol": symbol, "price": price, "sl": sl, "tp": tp})
+        return self.send_order(
+            asset=symbol, direction=direction, entry_price=price,
+            stop_loss=sl, take_profit=tp, volume=final_volume,
+        )
 
     def close_position(self, position_id: str,
                        symbol: Optional[str] = None) -> Dict[str, Any]:

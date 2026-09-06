@@ -27,6 +27,7 @@ broker:
   mcp_alias: ""
   digits: 5
   lot_size: 0.01
+  volume_step: 0.01
 
 # ---------------------------------------------------------------------------
 # Timeframe & Data Configuration
@@ -46,6 +47,9 @@ pipeline_overrides: {}
 # ---------------------------------------------------------------------------
 # Position Sizing
 # ---------------------------------------------------------------------------
+# SEMANTICS: effective per-trade risk % = risk_per_trade_pct (nominal 1.0) x
+# base_multiplier (1.0) = 1.0%.  base_multiplier is applied BEFORE the lot calc
+# as a risk scalar (never appended after, which would silently lower risk%).
 position_sizing:
   base_multiplier: 1.0
   risk_per_trade_pct: 1.0

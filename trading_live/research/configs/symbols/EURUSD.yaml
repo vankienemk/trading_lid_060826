@@ -27,6 +27,7 @@ broker:
   mcp_alias: ""
   digits: 5
   lot_size: 0.01
+  volume_step: 0.01
 
 # ---------------------------------------------------------------------------
 # Timeframe & Data Configuration
@@ -46,10 +47,15 @@ pipeline_overrides: {}
 # ---------------------------------------------------------------------------
 # Position Sizing
 # ---------------------------------------------------------------------------
-# Per frozen spec: EURUSD = 0.50 (50% of XAUUSD risk unit)
+# SEMANTICS (single-source, resolve double-scaling): effective per-trade risk %
+# = risk_per_trade_pct (nominal base risk budget) x base_multiplier (per-symbol
+# scalar applied BEFORE the lot calc).  Per the frozen spec EURUSD is 50% of the
+# XAUUSD risk unit, so with base_multiplier=0.50 the nominal risk budget is 1.0
+# (same as XAUUSD) and the effective per-trade risk% = 1.0 x 0.50 = 0.50%.
+# This avoids the previous accidental 0.25% (0.5 x 0.5) double-scaling.
 position_sizing:
   base_multiplier: 0.50
-  risk_per_trade_pct: 0.5
+  risk_per_trade_pct: 1.0
   max_position_size_lots: 0.5
   min_position_size_lots: 0.01
 

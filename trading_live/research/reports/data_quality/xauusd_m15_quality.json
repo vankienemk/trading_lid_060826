@@ -1,0 +1,166 @@
+{
+  "source_file": "",
+  "output_file": "",
+  "instrument": "XAUUSD",
+  "timeframe": "M15",
+  "schema": {
+    "timestamp": "datetime64[ns, UTC]",
+    "open": "float64",
+    "high": "float64",
+    "low": "float64",
+    "close": "float64",
+    "volume": "float64"
+  },
+  "row_count": 99692,
+  "start_time": "2022-06-02 06:15:00+00:00",
+  "end_time": "2026-08-27 19:45:00+00:00",
+  "duplicate_count": 0,
+  "missing_value_count": 0,
+  "invalid_ohlc_count": 0,
+  "suspected_gap_count": 1112,
+  "zero_volume_count": 0,
+  "volume_type": "tick",
+  "volume_note": "tick volume (MT5 TICKVOL) is used as 'volume'; the real-volume column (VOL) is entirely zero in this export, so it cannot represent actual traded volume.",
+  "real_volume_all_zero": false,
+  "timezone": {
+    "normalized_to": "UTC"
+  },
+  "gap_count": {
+    "total": 1112,
+    "by_kind": {
+      "short_gap": 887,
+      "holiday": 221,
+      "weekend": 4
+    },
+    "expected_step": "0 days 00:15:00",
+    "daily_break_duration": "0 days 01:15:00",
+    "definition": "daily_break=exact 75-min broker maintenance break crossing the daily rollover; weekend=Friday close->Monday open; holiday=larger multi-day breaks (Christmas/New Year, Good Friday, outages); short_gap=holiday early closes and intraday feed anomalies.  These are expected non-trading periods \u2014 no candles are forward-filled.  suspected_gap_count = total gaps > 15min."
+  },
+  "largest_gaps": [
+    {
+      "from": "2026-04-02 19:45:00+00:00",
+      "to": "2026-04-05 22:00:00+00:00",
+      "gap": "3 days 02:15:00",
+      "kind": "holiday"
+    },
+    {
+      "from": "2022-12-23 20:45:00+00:00",
+      "to": "2022-12-26 22:00:00+00:00",
+      "gap": "3 days 01:15:00",
+      "kind": "weekend"
+    },
+    {
+      "from": "2022-12-30 20:45:00+00:00",
+      "to": "2023-01-02 22:00:00+00:00",
+      "gap": "3 days 01:15:00",
+      "kind": "weekend"
+    },
+    {
+      "from": "2023-04-06 20:45:00+00:00",
+      "to": "2023-04-09 22:00:00+00:00",
+      "gap": "3 days 01:15:00",
+      "kind": "holiday"
+    },
+    {
+      "from": "2023-12-22 20:45:00+00:00",
+      "to": "2023-12-25 22:00:00+00:00",
+      "gap": "3 days 01:15:00",
+      "kind": "weekend"
+    },
+    {
+      "from": "2023-12-29 20:45:00+00:00",
+      "to": "2024-01-01 22:00:00+00:00",
+      "gap": "3 days 01:15:00",
+      "kind": "weekend"
+    },
+    {
+      "from": "2024-03-28 20:45:00+00:00",
+      "to": "2024-03-31 22:00:00+00:00",
+      "gap": "3 days 01:15:00",
+      "kind": "holiday"
+    },
+    {
+      "from": "2025-04-17 20:45:00+00:00",
+      "to": "2025-04-20 22:00:00+00:00",
+      "gap": "3 days 01:15:00",
+      "kind": "holiday"
+    },
+    {
+      "from": "2025-07-04 16:45:00+00:00",
+      "to": "2025-07-06 22:00:00+00:00",
+      "gap": "2 days 05:15:00",
+      "kind": "holiday"
+    },
+    {
+      "from": "2026-06-19 17:00:00+00:00",
+      "to": "2026-06-21 22:00:00+00:00",
+      "gap": "2 days 05:00:00",
+      "kind": "holiday"
+    },
+    {
+      "from": "2026-07-03 17:00:00+00:00",
+      "to": "2026-07-05 22:00:00+00:00",
+      "gap": "2 days 05:00:00",
+      "kind": "holiday"
+    },
+    {
+      "from": "2022-11-25 17:30:00+00:00",
+      "to": "2022-11-27 22:00:00+00:00",
+      "gap": "2 days 04:30:00",
+      "kind": "holiday"
+    },
+    {
+      "from": "2023-11-24 17:30:00+00:00",
+      "to": "2023-11-26 22:00:00+00:00",
+      "gap": "2 days 04:30:00",
+      "kind": "holiday"
+    },
+    {
+      "from": "2024-11-29 18:30:00+00:00",
+      "to": "2024-12-01 22:00:00+00:00",
+      "gap": "2 days 03:30:00",
+      "kind": "holiday"
+    },
+    {
+      "from": "2025-11-28 18:30:00+00:00",
+      "to": "2025-11-30 22:00:00+00:00",
+      "gap": "2 days 03:30:00",
+      "kind": "holiday"
+    },
+    {
+      "from": "2026-04-10 19:45:00+00:00",
+      "to": "2026-04-12 22:00:00+00:00",
+      "gap": "2 days 02:15:00",
+      "kind": "holiday"
+    },
+    {
+      "from": "2026-04-17 19:45:00+00:00",
+      "to": "2026-04-19 22:00:00+00:00",
+      "gap": "2 days 02:15:00",
+      "kind": "holiday"
+    },
+    {
+      "from": "2026-04-24 19:45:00+00:00",
+      "to": "2026-04-26 22:00:00+00:00",
+      "gap": "2 days 02:15:00",
+      "kind": "holiday"
+    },
+    {
+      "from": "2026-05-01 19:45:00+00:00",
+      "to": "2026-05-03 22:00:00+00:00",
+      "gap": "2 days 02:15:00",
+      "kind": "holiday"
+    },
+    {
+      "from": "2026-05-08 19:45:00+00:00",
+      "to": "2026-05-10 22:00:00+00:00",
+      "gap": "2 days 02:15:00",
+      "kind": "holiday"
+    }
+  ],
+  "spread": {},
+  "raw": {
+    "source_rows": null,
+    "raw_columns": null
+  }
+}

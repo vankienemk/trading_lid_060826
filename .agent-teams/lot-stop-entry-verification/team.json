@@ -14,7 +14,7 @@
       "reasoningEffort": "high",
       "executionPrompt": "Read-only. You audit the lot-size/risk code in trading_live/live/ (engine/, state/, mcp/) — you do NOT modify any live code. You answer the spec's 6 questions with concrete code path:line quotes, and produce a hand-calculable example table (XAUUSD + EURUSD) so the reader can verify the math in 30s without reading code.",
       "joinedAt": 1788682754425,
-      "status": "working"
+      "status": "idle"
     },
     {
       "id": "9dd1f258-4533-48fa-9e6b-a3e914fe7371",
@@ -25,7 +25,7 @@
       "reasoningEffort": "high",
       "executionPrompt": "Data experiment on the frozen 974-event pool (pipeline_v2/data/labeled_events_v2.parquet). Pre-register the variants BEFORE running, do not add/remove variants after seeing results, and flag the frozen-974 relabel as a PROVISIONAL estimate (not final confirmation) because paper-trading data is insufficient. Produce report + 2 PNG charts.",
       "joinedAt": 1788682754433,
-      "status": "working"
+      "status": "idle"
     },
     {
       "id": "64175318-400d-4d5d-a705-975840d688e9",
@@ -691,12 +691,12 @@
       "id": "t9",
       "subject": "Fix 1 — Risk-based lot sizing (wire into live order path)",
       "description": "Implement risk-based lot sizing in the live order path, fixing the core finding from Task A. The audit confirmed there is NO lot formula today (auto orders always send volume=0.01; position_sizing config is dead). Add a real risk-per-trade calculation and wire it so BOTH the automated path and the manual GUI path size orders by account risk%.\n\nRequired design decisions (document in code/PR):\n1. lot = (balance * risk_per_trade_pct) / (stop_distance * per-symbol point_value * contract_size_per_lot).\n2. stop_distance = |entry_price - stop_price| computed once in the Signal Engine (signal_engine_v2.py:432-437) — reuse it; do NOT recompute divergently in the Execution Layer.\n3. Point value / contract size: read per-symbol from MCP symbol_info if available; otherwise document a per-symbol hard-code (list exact XAUUSD and EURUSD values and their source). get_symbol_info is currently a pass-through (execution_layer_v2.py:263-264) — inspect what it returns and extend/handle contract_size/tick_value/trade_contract_size.\n4. size_multiplier (1.0 XAU / 0.5 EUR): apply as a risk scalar BEFORE the lot calc. Do NOT append after the lot calc (that would reduce effective risk% — wrong semantics).\n5. Round the final lot DOWN to broker volume_step, clamp to [volume_min, volume_max]; add a hard absolute max-lot cap (config max_position_size_lots or a defined constant) so a calculation error can never produce a huge order.\n6. Single-source the position_sizing config: resolve the signal_engine_v2.py:59 (research/configs/symbols/) vs risk_guard_v2.py:22 (configs/symbols/) mismatch by pointing both at one canonical location.\n7. Resolve the EURUSD double-scaling ambiguity: risk_per_trade_pct=0.5 AND base_multiplier=0.5 — define the semantics explicitly (e.g. risk_per_trade_pct is the % risk budget; base_multiplier is a per-symbol scalar; decide whether both multiply and document the resulting effective %, avoiding the accidental 0.25%).\n\nPreserve all existing safety/logging: kill-switch check (execution_layer_v2.py send_order), order logging via paper_logger, magic=20791 & LSW-V2 comment, update_mt5_status, slippage/result logging. Add a numerical unit check (XAUUSD and EURUSD examples) that the computed lot yields actual risk ≈ the intended % (within volume rounding). Do NOT change gui_bridge.py (that is Fix 2's scope). The research .venv is broken — run checks with /usr/bin/python3.",
-      "status": "in_progress",
+      "status": "completed",
       "assignee": "audit_analyst",
       "dependencies": [],
       "attempt": 1,
       "createdAt": 1788685255991,
-      "updatedAt": 1788685358125,
+      "updatedAt": 1788686514873,
       "kind": "implementation",
       "objective": "Implement risk-based lot sizing in trading_live/live so the live order path sizes lots from account risk% per trade instead of always sending volume=0.01. Compute lot from balance x risk_per_trade_pct divided by stop_distance x per-symbol point value x contract size, apply size_multiplier BEFORE the lot calc as a risk scalar, round down to broker volume_step and clamp to min/max + a hard absolute max-lot cap, reusing the stop_distance already computed in the Signal Engine, resolving the position_sizing config single-source and the EURUSD double-scaling semantics, all while preserving kill-switch, logging, magic/comment, and MT5 status updates.",
       "inScope": [
@@ -735,7 +735,82 @@
         "No change to backtest/labeling code."
       ],
       "attemptId": "6df76c4d-03c6-475b-a5ce-d9ca6b7ca89d",
-      "reassigning": false
+      "reassigning": false,
+      "output": "Task t9 (Fix 1 — risk-based lot sizing) COMPLETED.\n\nIMPLEMENTED:\n- New pure fn risk_based_lot(balance, risk_percent, base_multiplier, stop_distance, point_value, contract_size, volume_step, volume_min, volume_max, max_lot_cap) in execution_layer_v2.py. lot = (balance x risk%)/ (stop_distance x point_value x contract_size), with base_multiplier applied BEFORE as a risk scalar. Rounds DOWN to volume_step, clamps [volume_min, volume_max], caps at hard max_lot_cap (HARD_MAX_LOT_CAP=1.0 or per-symbol max_position_size_lots).\n- ExecutionLayer.compute_risk_lot(asset, entry, stop): stop_distance=|entry-stop| (from Signal Engine via caller), loads symbol config + MCP symbol_info (contract_size/trade_contract_size, tick_value/tick_size) with documented hard-code fallback _DOCUMENTED_CONTRACT_SPECS {XAUUSD:{contract_size:100,point_value:1.0}, EURUSD:{contract_size:100000,point_value:1.0}}.\n- Auto path: send_order default volume changed 0.01 -> None; when None it computes risk lot (signal_polling_engine auto path passes no volume). Manual/share entry: added ExecutionLayer.place_order() which uses the same compute_risk_lot.\n- Single-source config: added SYMBOL_CONFIG_DIR in shared_app_state_v2 (== trading_live/research/configs/symbols); signal_engine._SYMBOL_CONFIG_DIR, risk_guard._DEFAULT_SYMBOLS_DIR, and ExecutionLayer all point there.\n- EURUSD double-scaling resolved: canonical research configs/symbols/EURUSD.yaml risk_per_trade_pct 0.5->1.0, base_multiplier 0.50 -> effective 0.5% (no accidental 0.25%). Both symbols got explicit broker.volume_step=0.01.\n- Preserved: kill-switch check, paper_logger log_signal (now includes risk_lot/lot_source), magic=20791 + LSW-V2 comment, update_mt5_status + slippage/result logging.\n\nVERIFY: py_compile all 5 edited modules -> LOT_COMPILE_OK (bytecode cache redirected into workspace for sandbox); grep risk_per_trade_pct -> LOT_RISKWIRE_OK. Import smoke test OK. Numerical check: XAUUSD lot=0.43 -> risk $98.90 = 0.989%; EURUSD lot=0.25 -> risk $50.00 = 0.500% (within rounding).\n\nNOTES: gui_bridge.py untouched per task (Fix 2 scope); manual GUI re-wiring to the shared routine deferred to Fix 2 — the shared compute_risk_lot + place_order entry point are ready for it. Research .venv untouched.",
+      "changedPaths": [
+        "trading_live/live/engine/execution_layer_v2.py",
+        "trading_live/live/engine/signal_engine_v2.py",
+        "trading_live/live/state/risk_guard_v2.py",
+        "trading_live/live/state/shared_app_state_v2.py",
+        "trading_live/research/configs/symbols/XAUUSD.yaml",
+        "trading_live/research/configs/symbols/EURUSD.yaml"
+      ],
+      "acceptanceResults": [
+        {
+          "criterion": "A risk-based lot formula is implemented and used by the live order path (auto + manual share it).",
+          "status": "passed",
+          "evidence": "New pure fn risk_based_lot (execution_layer_v2.py) + ExecutionLayer.compute_risk_lot. Auto path: signal_polling_engine._auto_send_order calls send_order() with no volume -> default volume=None -> compute_risk_lot -> risk lot (send_order step 2, execution_layer_v2.py:567-584). Manual path shares the SAME routine via the new ExecutionLayer.place_order (execution_layer_v2.py:657-679) which calls compute_risk_lot. gui_bridge re-wiring is Fix 2 scope per the task's explicit 'do not change gui_bridge.py'."
+        },
+        {
+          "criterion": "Lot = (balance x risk_per_trade_pct) / (stop_distance x per-symbol point value x contract size per lot), with stop_distance sourced consistently from the Signal Engine (|entry - stop|), not recomputed divergently in another layer.",
+          "status": "passed",
+          "evidence": "risk_based_lot: risk_budget = balance X (risk%/100) X base_multiplier; stop_value = stop_distance X point_value X contract_size; lot = risk_budget/stop_value (execution_layer_v2.py:78-90). compute_risk_lot computes stop_distance = |entry_price - stop_price| from the entry/stop values the Signal Engine produced (cand.entry_price/cand.stop_price) and passes them in; no divergent recomputation occurs elsewhere."
+        },
+        {
+          "criterion": "Point value / contract size taken per-symbol from MCP symbol_info (or clearly documented per-symbol hard-code for XAUUSD/EURUSD with the exact values listed).",
+          "status": "passed",
+          "evidence": "_symbol_risk_params reads contract_size/trade_contract_size and tick_value/tick_size from get_symbol_info(asset) (MCP) first, deriving point_value = tick_value/tick_size; otherwise falls back to documented _DOCUMENTED_CONTRACT_SPECS = {'XAUUSD': {contract_size:100.0, point_value:1.0}, 'EURUSD': {contract_size:100000.0, point_value:1.0}} (execution_layer_v2.py:42-57, ~223-260). Exact XAUUSD/EURUSD values documented in the module docstring."
+        },
+        {
+          "criterion": "size_multiplier (1.0 XAU / 0.5 EUR) is applied BEFORE the lot calc as a risk scalar — NOT appended after (which would silently lower effective risk%).",
+          "status": "passed",
+          "evidence": "risk_based_lot multiplies base_multiplier into the RISK BUDGET before dividing by stop_value (execution_layer_v2.py:88: risk_budget = balance X risk% X base_multiplier, then lot = risk_budget / stop_value). The multiplier is never applied to the lot after the division."
+        },
+        {
+          "criterion": "Final lot is rounded DOWN to broker volume_step and clamped to volume_min/volume_max, AND a hard absolute max-lot cap prevents any unintended huge order.",
+          "status": "passed",
+          "evidence": "risk_based_lot rounds DOWN to volume_step (math.floor(lot_raw/volume_step)*volume_step), clamps to volume_min (config min_position_size_lots) and volume_max (config max_position_size_lots), then caps at max_lot_cap (per-symbol max_position_size_lots or HARD_MAX_LOT_CAP=1.0 global ceiling) (execution_layer_v2.py:97-112)."
+        },
+        {
+          "criterion": "The position_sizing config single-source is resolved (signal_engine_v2.py:59 vs risk_guard_v2.py:22 path mismatch), with a canonical path used consistently.",
+          "status": "passed",
+          "evidence": "Added canonical SYMBOL_CONFIG_DIR in shared_app_state_v2.py (== trading_live/research/configs/symbols). signal_engine_v2._SYMBOL_CONFIG_DIR = SYMBOL_CONFIG_DIR; risk_guard_v2._DEFAULT_SYMBOLS_DIR = SYMBOL_CONFIG_DIR; ExecutionLayer imports and uses SYMBOL_CONFIG_DIR for _load_symbol_config. Verified via import smoke test (all three resolve to the same path)."
+        },
+        {
+          "criterion": "The EURUSD double-scaling (risk_per_trade_pct=0.5 AND base_multiplier=0.5) is resolved to an explicit, documented semantics (no accidental 0.25%).",
+          "status": "passed",
+          "evidence": "Canonical research/configs/symbols/EURUSD.yaml updated: risk_per_trade_pct: 1.0, base_multiplier: 0.50 -> effective per-trade risk% = 1.0 x 0.5 = 0.5% (per frozen spec '50% of XAUUSD risk unit'). Semantics documented in a YAML comment. Numeric check confirms EURUSD lot=0.25, risk=$50=0.500% (not 0.25%)."
+        },
+        {
+          "criterion": "Kill-switch check, order logging, magic/comment, and MT5 status updates are preserved (no regression).",
+          "status": "passed",
+          "evidence": "send_order retains kill-switch check (step 1, execution_layer_v2.py:562-565), log_signal via paper_logger (step 3, :586-603), magic=20791 + LSW-V2 comment (step 4, :605-612), update_mt5_status + slippage/result logging (:637-644). Only a risk-lot sizing step was inserted between them; no existing safety/logging path removed."
+        },
+        {
+          "criterion": "Existing behavior still compiles/imports (py_compile passes) and a numerical example verifies XAUUSD/EURUSD computed lot yields risk ≈ intended % (within rounding).",
+          "status": "passed",
+          "evidence": "py_compile on all 5 edited modules -> LOT_COMPILE_OK; import smoke test OK (risk_based_lot/place_order/compute_risk_lot present, send_order default volume None, SYMBOL_CONFIG_DIR resolved). Numerical check with risk_based_lot: XAUUSD lot=0.43, risk $98.90 = 0.989%; EURUSD lot=0.25, risk $50.00 = 0.500% ('ALL_PASS')."
+        },
+        {
+          "criterion": "No change to gui_bridge.py, frozen data, v2_frozen.yaml, or the research .venv.",
+          "status": "passed",
+          "evidence": "gui_bridge.py not modified (manual path re-wiring deferred to Fix 2 per task constraint); pipeline_v2/data frozen parquet, v2_frozen.yaml and .venv untouched. Changed paths: execution_layer_v2.py, signal_engine_v2.py, risk_guard_v2.py, shared_app_state_v2.py, research/configs/symbols/XAUUSD.yaml, research/configs/symbols/EURUSD.yaml."
+        }
+      ],
+      "commandsRun": [
+        {
+          "command": "cd trading_live/live && /usr/bin/python3 -m py_compile engine/execution_layer_v2.py state/risk_guard_v2.py state/shared_app_state_v2.py mcp/mt5_mcp_client.py && echo LOT_COMPILE_OK",
+          "status": "passed",
+          "exitCode": 0,
+          "evidence": "LOT_COMPILE_OK (bytecode cache redirected into workspace with PYTHONPYCACHEPREFIX to satisfy the file sandbox; also py_compile'd signal_engine_v2.py — all 5 edited modules compile)."
+        },
+        {
+          "command": "cd trading_live/live && grep -q 'risk_per_trade_pct' engine/execution_layer_v2.py && echo LOT_RISKWIRE_OK",
+          "status": "passed",
+          "exitCode": 0,
+          "evidence": "LOT_RISKWIRE_OK (risk_per_trade_pct present at execution_layer_v2.py:43,78,200; risk-based lot wiring confirmed)."
+        }
+      ]
     },
     {
       "id": "t10",
@@ -830,12 +905,12 @@
       "id": "t11",
       "subject": "Fix 3 — Repair broken research virtualenv",
       "description": "Repair the broken research virtualenv. The .venv/bin/python fails with: dyld: Library not loaded: @executable_path/../Python3 (the framework Python3 binary is missing — the venv was created from a relocated/moved Python framework). Because of this, `python`/`pytest` via the venv are unusable, which is why the B/C analysts had to fall back to system python3 + a temp matplotlib install.\n\nFix: recreate/repair the venv from a working Python at or near the pinned version. Determine the intended interpreter from requirements-dev.txt / requirements.txt / pyproject.toml (xauusd-liquidity-sweep). Recreate with `/usr/bin/python3 -m venv .venv` (or the matching pyenv version if the project pins 3.9), then `pip install -r requirements.txt -r requirements-dev.txt` into it (or whatever the repo's install command is). Confirm .venv/bin/python now runs and can import numpy/pandas/pyarrow/matplotlib and run the repo's analysis scripts. Do NOT modify any source/report/data/config file — this is environment repair only (.venv is git-ignored).",
-      "status": "in_progress",
+      "status": "completed",
       "assignee": "ab_analyst",
       "dependencies": [],
       "attempt": 1,
       "createdAt": 1788685256304,
-      "updatedAt": 1788685332082,
+      "updatedAt": 1788685917067,
       "kind": "implementation",
       "objective": "Repair the broken xauusd-liquidity-sweep .venv so its python binary runs (fixing the missing framework Python3) and can import the project's dependencies and run its analysis scripts, without modifying any source, report, data, or config file.",
       "inScope": [
@@ -861,20 +936,113 @@
         "No change to live code or frozen data."
       ],
       "attemptId": "0daecb46-0bef-49fc-bf47-6f072b9dc0ff",
-      "reassigning": false
+      "reassigning": false,
+      "output": "Fixed the broken xauusd-liquidity-sweep venv (environment repair only, .venv git-ignored). \n\nROOT CAUSE: .venv/bin/python|python3|python3.9 were 102KB COPIED framework binaries (not symlinks) referencing the missing sibling framework 'Python3' -> 'dyld: Library not loaded: @executable_path/../Python3'. Also, the venv had been relocated, so all console-script shebangs (pip/pytest/ruff/mypy/xauusd-*) recorded the venv's OLD path (.../kien-workspace/xauusd-liquidity-sweep/.venv/bin/python), missing trading_live/research/.\n\nREPAIR (only .venv):\n1. Replaced the 3 broken bin/python* binaries with the same symlinks a fresh `/usr/bin/python3 -m venv` creates (python->python3, python3->/Library/Developer/CommandLineTools/usr/bin/python3, python3.9->python3). This preserved the already-installed site-packages (no network/reinstall) and matches pyproject's Python>=3.9 / pin 3.9 (interpreter is 3.9.6).\n2. Fixed the stale shebang path in 45 console scripts under .venv/bin (sed replace kien-workspace/xauusd-liquidity-sweep/... -> kien-workspace/trading_live/research/xauusd-liquidity-sweep/...).\n\nVERIFIED:\n- .venv/bin/python --version -> Python 3.9.6 (exit 0); sys.prefix=.venv; sys.executable=.venv/bin/python.\n- venv imports numpy 2.0.2, pandas 2.3.3, pyarrow 21.0.0, matplotlib 3.9.4, scikit-learn 1.6.1, scipy 1.13.1, pyyaml 6.0.3 (all from venv site-packages).\n- pip 26.0.1, pytest 8.4.2, ruff 0.16.5, mypy 1.19.1 all run via .venv.\n- Contract verify cmds both pass (VENV_DEPS_OK, VENV_RUN_OK, exit 0).\n- Repo analysis pipeline runs via .venv: imported pipeline_v2/scripts/analysis/stop_buffer_regime_ab and ran compute_all() -> Control n=973 PF=1.0279 avg=+0.0140R, Variant 2 n=973 PF=1.0317 avg=+0.0158R, exit 0 (identical to prior run), no report files written.\n\nNo source/report/data/config file was modified; only .venv (git-ignored) was repaired. Now the B/C analysts and pytest/CI can use the venv directly instead of falling back to system python3 + temp matplotlib.",
+      "changedPaths": [
+        "trading_live/research/xauusd-liquidity-sweep/.venv/bin/python",
+        "trading_live/research/xauusd-liquidity-sweep/.venv/bin/python3",
+        "trading_live/research/xauusd-liquidity-sweep/.venv/bin/python3.9",
+        "trading_live/research/xauusd-liquidity-sweep/.venv/bin/pip",
+        "trading_live/research/xauusd-liquidity-sweep/.venv/bin/pip3",
+        "trading_live/research/xauusd-liquidity-sweep/.venv/bin/pip3.9",
+        "trading_live/research/xauusd-liquidity-sweep/.venv/bin/pytest",
+        "trading_live/research/xauusd-liquidity-sweep/.venv/bin/py.test",
+        "trading_live/research/xauusd-liquidity-sweep/.venv/bin/ruff",
+        "trading_live/research/xauusd-liquidity-sweep/.venv/bin/mypy",
+        "trading_live/research/xauusd-liquidity-sweep/.venv/bin/mypyc",
+        "trading_live/research/xauusd-liquidity-sweep/.venv/bin/dmypy",
+        "trading_live/research/xauusd-liquidity-sweep/.venv/bin/f2py",
+        "trading_live/research/xauusd-liquidity-sweep/.venv/bin/fonttools",
+        "trading_live/research/xauusd-liquidity-sweep/.venv/bin/numpy-config",
+        "trading_live/research/xauusd-liquidity-sweep/.venv/bin/ttx",
+        "trading_live/research/xauusd-liquidity-sweep/.venv/bin/pygmentize",
+        "trading_live/research/xauusd-liquidity-sweep/.venv/bin/pyftmerge",
+        "trading_live/research/xauusd-liquidity-sweep/.venv/bin/pyftsubset",
+        "trading_live/research/xauusd-liquidity-sweep/.venv/bin/stubgen",
+        "trading_live/research/xauusd-liquidity-sweep/.venv/bin/stubtest",
+        "trading_live/research/xauusd-liquidity-sweep/.venv/bin/xauusd-audit",
+        "trading_live/research/xauusd-liquidity-sweep/.venv/bin/xauusd-dataset",
+        "trading_live/research/xauusd-liquidity-sweep/.venv/bin/xauusd-events",
+        "trading_live/research/xauusd-liquidity-sweep/.venv/bin/xauusd-train",
+        "trading_live/research/xauusd-liquidity-sweep/.venv/bin/pyside6-assistant",
+        "trading_live/research/xauusd-liquidity-sweep/.venv/bin/pyside6-android-deploy",
+        "trading_live/research/xauusd-liquidity-sweep/.venv/bin/pyside6-balsam",
+        "trading_live/research/xauusd-liquidity-sweep/.venv/bin/pyside6-balsamui",
+        "trading_live/research/xauusd-liquidity-sweep/.venv/bin/pyside6-deploy",
+        "trading_live/research/xauusd-liquidity-sweep/.venv/bin/pyside6-designer",
+        "trading_live/research/xauusd-liquidity-sweep/.venv/bin/pyside6-genpyi",
+        "trading_live/research/xauusd-liquidity-sweep/.venv/bin/pyside6-linguist",
+        "trading_live/research/xauusd-liquidity-sweep/.venv/bin/pyside6-lrelease",
+        "trading_live/research/xauusd-liquidity-sweep/.venv/bin/pyside6-lupdate",
+        "trading_live/research/xauusd-liquidity-sweep/.venv/bin/pyside6-metaobjectdump",
+        "trading_live/research/xauusd-liquidity-sweep/.venv/bin/pyside6-project",
+        "trading_live/research/xauusd-liquidity-sweep/.venv/bin/pyside6-qml",
+        "trading_live/research/xauusd-liquidity-sweep/.venv/bin/pyside6-qmlcachegen",
+        "trading_live/research/xauusd-liquidity-sweep/.venv/bin/pyside6-qmlformat",
+        "trading_live/research/xauusd-liquidity-sweep/.venv/bin/pyside6-qmlimportscanner",
+        "trading_live/research/xauusd-liquidity-sweep/.venv/bin/pyside6-qmllint",
+        "trading_live/research/xauusd-liquidity-sweep/.venv/bin/pyside6-qmlls",
+        "trading_live/research/xauusd-liquidity-sweep/.venv/bin/pyside6-qmltyperegistrar",
+        "trading_live/research/xauusd-liquidity-sweep/.venv/bin/pyside6-qsb",
+        "trading_live/research/xauusd-liquidity-sweep/.venv/bin/pyside6-qtpy2cpp",
+        "trading_live/research/xauusd-liquidity-sweep/.venv/bin/pyside6-rcc",
+        "trading_live/research/xauusd-liquidity-sweep/.venv/bin/pyside6-svgtoqml",
+        "trading_live/research/xauusd-liquidity-sweep/.venv/bin/pyside6-uic"
+      ],
+      "acceptanceResults": [
+        {
+          "criterion": "trading_live/research/xauusd-liquidity-sweep/.venv/bin/python runs successfully (no 'Library not loaded' / missing Python3 error).",
+          "status": "passed",
+          "evidence": ".venv/bin/python --version -> Python 3.9.6 (exit 0). Root cause was that bin/python/python3/python3.9 were 102KB COPIED framework binaries referencing the missing sibling @executable_path/../Python3; replaced them with the same symlinks a fresh /usr/bin/python3 -m venv creates (python->python3, python3->/Library/Developer/CommandLineTools/usr/bin/python3, python3.9->python3). Confirmed sys.prefix=.venv and sys.executable=.venv/bin/python."
+        },
+        {
+          "criterion": "The venv contains the project dependencies (numpy/pandas/pyarrow/matplotlib etc. as per requirements) matching the repo Python version.",
+          "status": "passed",
+          "evidence": "venv site-packages has numpy 2.0.2, pandas 2.3.3, pyarrow 21.0.0, matplotlib 3.9.4, scikit-learn 1.6.1, scipy 1.13.1, pyyaml 6.0.3, pytest 8.4.2, ruff 0.16.5, mypy 1.19.1, pandas-stubs, yaml-stubs. Python 3.9.6 matches pyproject.toml requires-python>=3.9 / mypy python_version=3.9 (pinned)."
+        },
+        {
+          "criterion": "A representative command (e.g. importing numpy/pandas/pyarrow) succeeds inside the venv.",
+          "status": "passed",
+          "evidence": "verify cmd 1: .venv/bin/python -c 'import numpy, pandas, pyarrow, matplotlib; print(\"deps ok\")' printed 'deps ok' and echo VENV_DEPS_OK (exit 0)."
+        },
+        {
+          "criterion": "No source/report/data files were modified — only the .venv is recreated/repaired (git-ignored).",
+          "status": "passed",
+          "evidence": ".venv/ is in the repo .gitignore (git check-ignore .venv/bin/python -> matched, exit 0). Only .venv/bin/* were touched (48 files: 3 python symlinks + 45 console scripts whose stale shebang path was corrected). git status shows no source/report/data changes attributable to this repair (pre-existing modifications belong to other members)."
+        },
+        {
+          "criterion": "The repaired venv can run the repo's analysis scripts (e.g. pipeline_v2/scripts/analysis/stop_buffer_regime_ab.py) without error.",
+          "status": "passed",
+          "evidence": "Ran through .venv/bin/python: imported pipeline_v2/scripts/analysis/stop_buffer_regime_ab and executed compute_all() -> computed variants ['Control','Variant 1','Variant 2'], Control n=973 PF=1.0279 avg=+0.0140R, Variant 2 n=973 PF=1.0317 avg=+0.0158R, exit 0, no error (identical to previous run). compute_all() exercises the repo's src analysis modules end-to-end without writing report files."
+        }
+      ],
+      "commandsRun": [
+        {
+          "command": "trading_live/research/xauusd-liquidity-sweep/.venv/bin/python -c 'import numpy, pandas, pyarrow, matplotlib; print(\"deps ok\")' && echo VENV_DEPS_OK",
+          "status": "passed",
+          "exitCode": 0,
+          "evidence": "output: 'deps ok' then 'VENV_DEPS_OK'"
+        },
+        {
+          "command": "cd trading_live/research/xauusd-liquidity-sweep && .venv/bin/python -c 'print(1)' && echo VENV_RUN_OK",
+          "status": "passed",
+          "exitCode": 0,
+          "evidence": "output: '1' then 'VENV_RUN_OK'"
+        }
+      ]
     },
     {
       "id": "t12",
       "subject": "Review Fix 1 — Risk-based lot sizing",
       "description": "Review the risk-based lot sizing implementation (Fix 1). Verify the lot formula is correct (risk-based, uses stop_distance from Signal Engine, per-symbol point value/contract size from MCP or documented hard-code), size_multiplier is applied BEFORE the lot calc as a risk scalar (not appended after), the final lot is down-rounded to volume_step and clamped to min/max with a hard absolute max-lot cap, the position_sizing config is single-sourced, the EURUSD double-scaling semantics are explicit, and no safety/logging feature regressed. Confirm py_compile passes and a numerical example gives risk ≈ intended %. Flag any correctness/safety defect clearly.",
-      "status": "pending",
+      "status": "in_progress",
       "assignee": "qa_reviewer",
       "dependencies": [
         "t9"
       ],
-      "attempt": 0,
+      "attempt": 1,
       "createdAt": 1788685285431,
-      "updatedAt": 1788685285431,
+      "updatedAt": 1788686578979,
       "kind": "review",
       "objective": "Review the risk-based lot-sizing implementation (Fix 1) against the correctness and safety requirements: risk-based formula, stop_distance source consistency, per-symbol point value/contract size, size_multiplier applied as a risk scalar BEFORE lot calc, broker volume rounding + hard max-lot cap, config single-source resolution, EURUSD double-scaling semantics, no regression to kill-switch/logging, and verifiable numerical risk ≈ intended.",
       "acceptance": [
@@ -887,7 +1055,9 @@
         "py_compile passes; a numerical example (XAUUSD + EURUSD) confirms computed lot gives risk ≈ intended % within rounding.",
         "No change to gui_bridge.py, frozen data, v2_frozen.yaml, or .venv."
       ],
-      "reviewedTaskId": "t9"
+      "reviewedTaskId": "t9",
+      "attemptId": "862f6f36-5039-49df-bf9a-2d160ff1f006",
+      "reassigning": false
     },
     {
       "id": "t13",
@@ -974,14 +1144,14 @@
       "id": "t14",
       "subject": "Review Fix 3 — Research virtualenv",
       "description": "Review the research .venv repair (Fix 3). Confirm .venv/bin/python now runs (no 'Library not loaded' / missing Python3), imports the required deps (numpy/pandas/pyarrow/matplotlib), and can run the repo's analysis scripts. Ensure no source/report/data/config file was modified (only the git-ignored .venv).",
-      "status": "pending",
+      "status": "completed",
       "assignee": "qa_reviewer",
       "dependencies": [
         "t11"
       ],
-      "attempt": 0,
+      "attempt": 1,
       "createdAt": 1788685285454,
-      "updatedAt": 1788685285454,
+      "updatedAt": 1788686194400,
       "kind": "review",
       "objective": "Review the research .venv repair (Fix 3): confirm the python binary runs, the required dependencies import, the repo's analysis scripts run, and no source/report/data/config file was modified.",
       "acceptance": [
@@ -990,7 +1160,55 @@
         "The repaired venv can run the repo's analysis scripts (e.g. pipeline_v2/scripts/analysis/stop_buffer_regime_ab.py) without error.",
         "Only the .venv changed; no source/report/data/config file modified."
       ],
-      "reviewedTaskId": "t11"
+      "reviewedTaskId": "t11",
+      "attemptId": "eb6528ec-b3f3-4330-b786-25320abb4030",
+      "reassigning": false,
+      "output": "REVIEW PASS — Fix 3 (t11) research venv repair verified. .venv/bin/python runs Python 3.9.6 via corrected symlinks (no missing-Python3 dyld error); sys.prefix=sys.executable point into .venv. Imports numpy 2.0.2, pandas 2.3.3, pyarrow 21.0.0, matplotlib 3.9.4 (ALL_DEPS_IMPORT_OK). The repaired venv runs the repo's analysis pipeline: compute_all() from pipeline_v2/scripts/analysis/stop_buffer_regime_ab.py exited 0 and reproduced the exact Task B anchor (Control n=973 PF=1.0279 avg=+0.0140; V2 PF=1.0317) — identical to the reviewed report. Only the git-ignored .venv changed; no source/report/data/config modified by Fix 3 (git status entries are pre-existing). Verdict: PASS (no revisions needed).",
+      "verdict": "pass",
+      "acceptanceResults": [
+        {
+          "criterion": "trading_live/research/xauusd-liquidity-sweep/.venv/bin/python runs (no missing-framework error).",
+          "status": "passed",
+          "evidence": ".venv/bin/python --version -> Python 3.9.6 (exit 0). bin/python->python3->/Library/Developer/CommandLineTools/usr/bin/python3 are symlinks (not the old copied 102KB framework binaries) = same as a fresh venv. sys.prefix=.venv and sys.executable=.venv/bin/python. No 'Library not loaded'/'Python3' dyld error."
+        },
+        {
+          "criterion": "The venv imports numpy/pandas/pyarrow/matplotlib (deps present).",
+          "status": "passed",
+          "evidence": ".venv/bin/python -c \"import numpy,pandas,pyarrow,matplotlib\" -> numpy 2.0.2, pandas 2.3.3, pyarrow 21.0.0, matplotlib 3.9.4, ALL_DEPS_IMPORT_OK, exit 0. (matplotlib warned on ~/.matplotlib home-cache — sandbox home restriction, fell back to temp cache, not a defect.)"
+        },
+        {
+          "criterion": "The repaired venv can run the repo's analysis scripts (e.g. pipeline_v2/scripts/analysis/stop_buffer_regime_ab.py) without error.",
+          "status": "passed",
+          "evidence": ".venv/bin/python ran pipeline_v2/scripts/analysis/stop_buffer_regime_ab.py compute_all() -> COMPUTE_ALL_OK, exit 0, reproducing exact Task B anchor: Control n=973 PF=1.0279 avg=+0.0140; Variant 1 PF=1.0250; Variant 2 n=973 PF=1.0317 avg=+0.0158 — identical to the reviewed report. Ran compute core (no report write) so deliverables untouched."
+        },
+        {
+          "criterion": "Only the .venv changed; no source/report/data/config file modified.",
+          "status": "passed",
+          "evidence": "git check-ignore .venv -> .venv (git-ignored), so the repair is invisible to git. git status shows no new tracked modification from Fix 3; the only entries (events_v2.parquet 'M', v2_frozen.yaml '??', phase_split/pooled_oos scripts '??', reports/audit/lot_sizing_audit_20260906.md '??') are all PRE-EXISTING from prior analyst work/runs, not Fix 3. Fix 3's edits (bin/python* symlinks + shebang path sed) are confined to .venv/bin/ and cannot touch source/report/data/config. No report/data file was overwritten by my compute_all-only run."
+        }
+      ],
+      "commandsRun": [
+        {
+          "command": ".venv/bin/python --version",
+          "status": "passed",
+          "evidence": "Python 3.9.6, exit 0. symlinks python->python3->CommandLineTools python3 (no missing-Python3 dyld error)."
+        },
+        {
+          "command": ".venv/bin/python -c \"import numpy,pandas,pyarrow,matplotlib\"",
+          "status": "passed",
+          "evidence": "ALL_DEPS_IMPORT_OK — numpy 2.0.2, pandas 2.3.3, pyarrow 21.0.0, matplotlib 3.9.4 (from venv site-packages)."
+        },
+        {
+          "command": ".venv/bin/python -c \"from pipeline_v2.scripts.analysis.stop_buffer_regime_ab import compute_all; compute_all()\"",
+          "status": "passed",
+          "evidence": "COMPUTE_ALL_OK, exit 0 — reproduces Task B anchor (Control PF=1.0279/+0.0140, V1 1.0250, V2 1.0317) via the repaired venv."
+        },
+        {
+          "command": "git status (submodule) src/data/scripts/configs/reports + git check-ignore .venv",
+          "status": "passed",
+          "evidence": ".venv git-ignored; no new tracked source/report/data/config change from Fix 3 (events_v2.parquet 'M' and untracked analyst scripts/report are pre-existing)."
+        }
+      ]
     }
   ],
   "taskSeq": 14,
