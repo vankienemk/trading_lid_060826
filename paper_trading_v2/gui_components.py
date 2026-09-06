@@ -184,6 +184,25 @@ QProgressBar::chunk {{
     background-color: {COLOR_POSITIVE};
     border-radius: 3px;
 }}
+QMessageBox {{
+    background-color: {COLOR_SURFACE};
+    color: {COLOR_TEXT};
+}}
+QMessageBox QLabel {{
+    color: {COLOR_TEXT};
+}}
+QMessageBox QPushButton {{
+    background-color: #3a3a3a;
+    color: {COLOR_TEXT};
+    border: 1px solid #555555;
+    border-radius: 4px;
+    padding: 6px 14px;
+    min-height: 24px;
+    min-width: 80px;
+}}
+QMessageBox QPushButton:hover {{
+    background-color: #4a4a4a;
+}}
 """
 
 # ---------------------------------------------------------------------------
@@ -241,12 +260,44 @@ class ConfirmationDialog(QDialog):
         self.setMinimumWidth(420)
         self.setModal(True)
 
+        # Dark theme background for dialog
+        self.setStyleSheet(f"""
+            QDialog {{
+                background-color: {COLOR_SURFACE};
+                color: {COLOR_TEXT};
+            }}
+            QLabel {{
+                color: {COLOR_TEXT};
+                font-size: 13px;
+            }}
+            QLineEdit {{
+                background-color: {COLOR_BG};
+                color: {COLOR_TEXT};
+                border: 1px solid #555555;
+                border-radius: 4px;
+                padding: 4px 8px;
+                min-height: 24px;
+            }}
+            QPushButton {{
+                background-color: #3a3a3a;
+                color: {COLOR_TEXT};
+                border: 1px solid #555555;
+                border-radius: 4px;
+                padding: 6px 14px;
+                min-height: 24px;
+            }}
+            QPushButton:hover {{
+                background-color: #4a4a4a;
+            }}
+        """)
+
         layout = QVBoxLayout(self)
         layout.setSpacing(12)
 
         # Message label
         msg_label = QLabel(message)
         msg_label.setWordWrap(True)
+        msg_label.setStyleSheet(f"color: {COLOR_TEXT}; font-size: 13px;")
         layout.addWidget(msg_label)
 
         # Optional input

@@ -1,0 +1,163 @@
+{
+  "name": "final_cleanup_team",
+  "id": "final-cleanup-team",
+  "description": "3 major tasks: (1) Fix price display in Onboarding tab — show bid only, ensure correct MCP symbol name matching (no uppercasing, fallback with 'm' suffix), and verify M15 candle trigger works correctly with signal engine. (2) Restructure workspace to proposed layout: trading_live/{live/, research/, artifacts/, model_registry/, docs/, archive/} with proper separation of live trading code from research pipeline. (3) Create docs/decisions/ with freeze/verdict/rework decision files.",
+  "captainSessionId": "session-f9e73dbd-7459-4fe6-859f-420afe593c6b",
+  "createdAt": 1788656056131,
+  "members": [
+    {
+      "id": "",
+      "name": "Price_And_M15_Dev",
+      "role": "engineer",
+      "provider": "modlens-openrouter",
+      "model": "deepseek/deepseek-v4-flash",
+      "executionPrompt": "Expert in PySide6 GUI, MCP data flow, and signal engine. Fix price display: (1) Change Onboarding tab to show single bid price (not Bid/Ask) — simpler, cleaner. (2) Ensure symbol name matching between registry (may have 'm' suffix or not) and MCP symbols (always have 'm' suffix) — use case-insensitive matching with fallback. (3) Fix _refresh_symbols to fetch prices via bridge.fetch_symbols() which returns bid/ask, or via execution_layer.get_symbol_info() for each symbol. (4) Verify M15 candle trigger: check signal_engine_v2.py runs detection on new M15 candles and logs to System Log. Add any missing M15 trigger logging.",
+      "joinedAt": 1788656079913,
+      "status": "idle"
+    },
+    {
+      "id": "",
+      "name": "Restructure_Dev",
+      "role": "engineer",
+      "provider": "modlens-openrouter",
+      "model": "deepseek/deepseek-v4-flash",
+      "executionPrompt": "Expert in filesystem restructuring and imports. Restructure workspace to: trading_live/{live/, research/, artifacts/, model_registry/, docs/, archive/}. Move: paper_trading_v2/ → live/ (with subdirs gui/, engine/, mcp/, logging/, state/, db/), xauusd-liquidity-sweep/ → research/, old/ → archive/, configs/models/index.yaml → model_registry/index.yaml, configs/symbols/ → research/configs/symbols/. Update ALL imports (from paper_trading_v2.xxx → from live.xxx) across all Python files. Create __init__.py files. Update gui_main.py entry point path. This is a large refactor — do NOT break any functionality. Verify with import tests after each move.",
+      "joinedAt": 1788656104290,
+      "status": "idle"
+    },
+    {
+      "id": "",
+      "name": "Docs_Dev",
+      "role": "engineer",
+      "provider": "modlens-openrouter",
+      "model": "deepseek/deepseek-v4-flash",
+      "executionPrompt": "Create docs/decisions/ directory with 3 files based on existing knowledge: (1) 2026-09-04_v1.2.0_freeze.md — record the v1.2.0 baseline freeze decisions from xauusd-liquidity-sweep (frozen parameters, MD5 checksums). (2) 2026-09-05_v2_pooled_oos_verdict.md — record the pooled OOS meta-analysis verdict, the decision to adopt V2 pipeline. (3) 2026-09-05_gui_rework.md — record the GUI rework decisions (remove wizard, model registry, system log, etc). Gather content from existing reports, CHANGELOG.md, and session memory.",
+      "joinedAt": 1788656125953,
+      "status": "idle"
+    },
+    {
+      "id": "",
+      "name": "Final_Reviewer",
+      "role": "reviewer",
+      "provider": "modlens-openrouter",
+      "model": "deepseek/deepseek-v4-flash",
+      "executionPrompt": "Review ALL changes: (1) Verify price display shows bid correctly for each symbol, with proper MCP name matching. (2) Verify M15 candle trigger logging appears in System Log tab. (3) Verify workspace restructuring is complete — all imports updated, all files moved, no broken references, GUI starts correctly. (4) Verify docs/decisions/ files are accurate. (5) Reject if any import is broken, price not showing, or M15 logging missing.",
+      "joinedAt": 1788656151362,
+      "status": "idle"
+    }
+  ],
+  "tasks": [
+    {
+      "id": "t1",
+      "subject": "Fix price display + M15 candle trigger verification",
+      "description": "Fix price display in Onboarding tab: (1) Change column header from 'Giá (Bid/Ask)' to 'Giá (Bid)'. (2) Show only bid price, formatted nicely. (3) Fix symbol name matching: compare case-insensitively, try with/without 'm' suffix. (4) Verify M15 candle trigger in signal_engine_v2.py logs to System Log when new M15 candle closes. Add any missing M15 trigger logging. (5) Test with existing symbols (EURUSDm, XAUUSDm, BTCUSDm).",
+      "status": "pending",
+      "assignee": "Price_And_M15_Dev",
+      "dependencies": [],
+      "attempt": 0,
+      "createdAt": 1788656174390,
+      "updatedAt": 1788656174390,
+      "kind": "implementation",
+      "objective": "Price displays correctly, M15 trigger logs to System Log",
+      "inScope": [
+        "paper_trading_v2/gui_tab_onboarding.py",
+        "paper_trading_v2/signal_engine_v2.py"
+      ],
+      "acceptance": [
+        "Onboarding tab shows bid price (single value, not Bid/Ask pair)",
+        "Price updates correctly for each symbol via MCP",
+        "Symbol name matching works with or without 'm' suffix",
+        "M15 candle trigger logging appears in System Log tab"
+      ],
+      "verify": [
+        "PYTHONPATH=\\$PWD /tmp/ptv2_venv/bin/python3 -c 'from paper_trading_v2.gui_tab_onboarding import SymbolOnboardingTab; print(\"OK\")'"
+      ]
+    },
+    {
+      "id": "t2",
+      "subject": "Restructure workspace to trading_live/ layout",
+      "description": "Restructure workspace to trading_live/ layout. Create: live/ (from paper_trading_v2/, split into gui/engine/mcp/logging/state/db subdirs), research/ (from xauusd-liquidity-sweep/), artifacts/models/XAUUSD/ and EURUSD/, model_registry/index.yaml (from configs/models/index.yaml), docs/ + docs/decisions/, archive/ (from old/ + README.md). Update ALL Python imports. Update ModelRegistry path. Keep original dirs as symlinks for backward compat.",
+      "status": "pending",
+      "assignee": "Restructure_Dev",
+      "dependencies": [],
+      "attempt": 0,
+      "createdAt": 1788656228484,
+      "updatedAt": 1788656228484,
+      "kind": "implementation",
+      "objective": "Workspace restructured to trading_live/ layout",
+      "inScope": [
+        "trading_live/",
+        "xauusd-liquidity-sweep/",
+        "configs/",
+        "old/",
+        "artifacts/"
+      ],
+      "acceptance": [
+        "trading_live/ directory exists with all expected subdirs",
+        "All Python imports from paper_trading_v2.xxx updated to live.xxx",
+        "GUI starts correctly",
+        "model_registry/ has index.yaml",
+        "archive/ has old/ content + README.md"
+      ],
+      "verify": [
+        "ls trading_live/live/gui/gui_main.py trading_live/research/src/__init__.py trading_live/model_registry/index.yaml trading_live/archive/README.md 2>/dev/null | wc -l"
+      ]
+    },
+    {
+      "id": "t3",
+      "subject": "Create docs/decisions/ + archive/README.md",
+      "description": "Create docs/decisions/ directory in trading_live/ with 3 decision files: (1) 2026-09-04_v1.2.0_freeze.md — baseline freeze, MD5 checksums, frozen parameters. (2) 2026-09-05_v2_pooled_oos_verdict.md — pooled OOS meta-analysis, V2 pipeline adoption. (3) 2026-09-05_gui_rework.md — GUI rework decisions (remove wizard, model registry, system log). Also create archive/README.md explaining each archived item. Gather content from CHANGELOG.md, reports, and session memory.",
+      "status": "pending",
+      "assignee": "Docs_Dev",
+      "dependencies": [
+        "t2"
+      ],
+      "attempt": 0,
+      "createdAt": 1788656257894,
+      "updatedAt": 1788656257894,
+      "kind": "implementation",
+      "objective": "Decision files created for all major milestones",
+      "inScope": [
+        "trading_live/docs/decisions/",
+        "trading_live/archive/README.md"
+      ],
+      "acceptance": [
+        "docs/decisions/2026-09-04_v1.2.0_freeze.md exists with accurate content",
+        "docs/decisions/2026-09-05_v2_pooled_oos_verdict.md exists",
+        "docs/decisions/2026-09-05_gui_rework.md exists",
+        "archive/README.md exists explaining each archived item"
+      ],
+      "verify": [
+        "ls trading_live/docs/decisions/*.md trading_live/archive/README.md 2>/dev/null | wc -l"
+      ]
+    },
+    {
+      "id": "t4",
+      "subject": "Final review of all changes",
+      "description": "Final review of all changes: (1) Verify price display in Onboarding tab shows single bid price, matching correctly. (2) Verify M15 candle trigger logs to System Log. (3) Verify workspace restructuring is complete — all imports updated, GUI starts, no broken references. (4) Verify docs/decisions/ files are accurate. (5) Reject if any issue found.",
+      "status": "pending",
+      "assignee": "Final_Reviewer",
+      "dependencies": [
+        "t1",
+        "t2",
+        "t3"
+      ],
+      "attempt": 0,
+      "createdAt": 1788656281470,
+      "updatedAt": 1788656281470,
+      "kind": "review",
+      "objective": "All 3 major tasks completed correctly",
+      "acceptance": [
+        "Price displays correctly in Onboarding tab (single bid)",
+        "M15 trigger logging appears in System Log",
+        "trading_live/ structure is complete with all imports working",
+        "GUI starts and runs without errors",
+        "Model Registry loads from new path"
+      ],
+      "reviewedTaskId": "t3"
+    }
+  ],
+  "taskSeq": 4,
+  "phase": "staged",
+  "planReviewState": "awaiting_review"
+}

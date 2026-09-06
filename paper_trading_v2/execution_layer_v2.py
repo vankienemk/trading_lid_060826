@@ -77,6 +77,9 @@ class ExecutionLayer:
         self._poll_thread = threading.Thread(target=self._position_poll_loop,
                                              daemon=True, name="el-pos-poll")
         self._poll_thread.start()
+        syslog("INFO", "Execution", "",
+               f"ExecutionLayer initialized: endpoint={self.endpoint}, auto_reconnect={auto_reconnect}",
+               extra={"endpoint": self.endpoint, "auto_reconnect": auto_reconnect})
 
     def set_token(self, token: str) -> None:
         """Set the MCP authentication token dynamically (GUI callable)."""
@@ -117,6 +120,7 @@ class ExecutionLayer:
                 pass
             self._client = None
             self._session_initialized = False
+            syslog("WARNING", "Execution", "", "MCP client closed (session terminated)")
 
     def _ensure_session(self) -> None:
         client = self._ensure_client()
@@ -128,6 +132,9 @@ class ExecutionLayer:
                 client.list_tools(refresh=True)
                 self._session_initialized = True
                 self.state.set_mcp_connection_state("connected")
+                syslog("INFO", "Execution", "",
+                       "MCP session established successfully",
+                       extra={"endpoint": self.endpoint, "attempt": attempt + 1})
                 return
             except (MCPConnectionError, MCPError) as exc:
                 if attempt < RETRY_COUNT:
@@ -196,6 +203,7 @@ class ExecutionLayer:
 
     def stop_polling(self) -> None:
         self._polling_active = False
+        syslog("INFO", "Execution", "", "Position polling stopped")
 
     def health_check(self) -> Dict[str, Any]:
         start = time.time()

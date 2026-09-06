@@ -38,6 +38,7 @@ from paper_trading_v2.logger_v2 import (
     init_db,
     log_signal,
     update_order_result,
+    log as syslog,
     log_user_action,
     get_recent_trades,
     get_user_actions,
@@ -181,12 +182,15 @@ class SystemBridge:
         """
         if token:
             self.state.set_mcp_token(token)
+            syslog("INFO", "MCP", "", "MCP token updated via connect_mcp")
 
         with self._mcp_lock:
             if self._exec_layer is None:
+                syslog("INFO", "MCP", "", "Initializing MCP execution layer...")
                 self._init_exec_layer()
                 if self._exec_layer is None:
                     self.state.set_mcp_connection_state("disconnected")
+                    syslog("ERROR", "MCP", "", "MCP execution layer initialization failed")
                     return False
             else:
                 # Always sync the latest token from state into exec_layer
@@ -196,6 +200,8 @@ class SystemBridge:
 
             try:
                 self.state.set_mcp_connection_state("reconnecting")
+                syslog("INFO", "MCP", "", "Attempting MCP connection...",
+                       extra={"endpoint": getattr(self._exec_layer, "endpoint", "unknown")})
                 # Attempt health check
                 health = self._exec_layer.health_check()
                 if health.get("ok"):
@@ -210,16 +216,22 @@ class SystemBridge:
                         account_info=acct,
                     )
 
+                    syslog("INFO", "MCP", "", "MCP connected successfully",
+                           extra={"endpoint": getattr(self._exec_layer, "endpoint", "unknown")})
                     _log("connect_mcp", {"status": "connected"})
                     return True
                 else:
                     self.state.set_mcp_connection_state("disconnected")
                     self.state.update_mt5_status(connected=False)
+                    syslog("WARNING", "MCP", "", "MCP health check failed",
+                           extra={"health": health})
                     _log("connect_mcp", {"status": "health_check_failed", "health": health})
                     return False
             except Exception as e:
                 self.state.set_mcp_connection_state("disconnected")
                 self.state.update_mt5_status(connected=False)
+                syslog("ERROR", "MCP", "", f"MCP connection error: {e}",
+                       extra={"error": str(e)})
                 _log("connect_mcp", {"status": "error", "error": str(e)})
                 return False
 
@@ -227,10 +239,12 @@ class SystemBridge:
         """Disconnect from MCP."""
         self.state.set_mcp_connection_state("disconnected")
         self.state.update_mt5_status(connected=False)
+        syslog("INFO", "MCP", "", "MCP disconnected by user")
         _log("disconnect_mcp", {})
 
     def reconnect_mcp(self) -> bool:
         """Force reconnection with existing token and auto-reconnect logic."""
+        syslog("WARNING", "MCP", "", "MCP reconnection triggered")
         return self.connect_mcp(self.state.mcp_token)
 
     def fetch_positions(self) -> List[Dict[str, Any]]:
@@ -282,9 +296,16 @@ class SystemBridge:
                     tp=take_profit,
                 )
             _log("send_order", {"asset": asset, "direction": direction, "result": str(result)})
+            syslog("INFO", "Execution", asset,
+                   f"Order sent via bridge: {direction.upper()} {lot_size} lots @ {entry_price}",
+                   extra={"direction": direction, "volume": lot_size,
+                          "entry": entry_price, "sl": stop_loss, "tp": take_profit})
             return result
         except Exception as e:
             _log("send_order", {"asset": asset, "error": str(e)})
+            syslog("ERROR", "Execution", asset,
+                   f"Order failed via bridge: {e}",
+                   extra={"direction": direction, "error": str(e)})
             return {"ok": False, "error": str(e)}
 
     def close_position(self, position_id: str) -> Dict[str, Any]:
@@ -294,8 +315,15 @@ class SystemBridge:
         try:
             result = self._exec_layer.close_position(position_id)
             _log("close_position", {"position_id": position_id, "result": str(result)})
+            if result.get("success"):
+                syslog("INFO", "Execution", "", f"Position {position_id} closed via bridge")
+            else:
+                syslog("WARNING", "Execution", "",
+                       f"Close position {position_id} returned: {result.get('error', 'unknown')}")
             return result
         except Exception as e:
+            syslog("ERROR", "Execution", "", f"Close position {position_id} failed: {e}",
+                   extra={"position_id": position_id, "error": str(e)})
             return {"ok": False, "error": str(e)}
 
     # ------------------------------------------------------------------
@@ -314,8 +342,13 @@ class SystemBridge:
             # Health check
             health = self._exec_layer.health_check()
             if health.get("ok"):
+                was_disconnected = self.state.mcp_connection_state != "connected"
                 self.state.set_mcp_connection_state("connected")
                 self.state.update_mt5_status(connected=True)
+
+                if was_disconnected:
+                    syslog("INFO", "MCP", "", "MCP reconnected during polling refresh",
+                           extra={"endpoint": getattr(self._exec_layer, "endpoint", "unknown")})
 
                 # Account info
                 acct = self._exec_layer.get_account_info()
@@ -405,13 +438,18 @@ class SystemBridge:
         """
         if not self._model_registry.get_model(model_id):
             _log("assign_model_to_symbol", {"symbol": symbol, "model_id": model_id, "error": "unknown model"})
+            syslog("WARNING", "System", symbol,
+                   f"Assign model failed: '{model_id}' not found in registry")
             return False
 
         cfg = self.state.get_symbol_config(symbol)
         if cfg is None:
             _log("assign_model_to_symbol", {"symbol": symbol, "model_id": model_id, "error": "unknown symbol"})
+            syslog("WARNING", "System", symbol,
+                   f"Assign model failed: symbol '{symbol}' not in registry")
             return False
 
+        old_model = cfg.model_id
         self.state.register_symbol(
             symbol,
             SymbolConfig(
@@ -424,6 +462,9 @@ class SystemBridge:
         )
         self.state.save_registry()
         _log("assign_model_to_symbol", {"symbol": symbol, "model_id": model_id})
+        syslog("INFO", "System", symbol,
+               f"Model assigned: {old_model or 'none'} → {model_id}",
+               extra={"old_model": old_model, "new_model": model_id})
         return True
 
     def add_symbol_with_model(
@@ -448,10 +489,14 @@ class SystemBridge:
         """
         if not self._model_registry.get_model(model_id):
             _log("add_symbol_with_model", {"symbol": symbol, "model_id": model_id, "error": "unknown model"})
+            syslog("WARNING", "System", symbol,
+                   f"Add symbol failed: model '{model_id}' not found in registry")
             return False
 
         if self.state.get_symbol_config(symbol) is not None:
             _log("add_symbol_with_model", {"symbol": symbol, "model_id": model_id, "error": "already registered"})
+            syslog("WARNING", "System", symbol,
+                   "Add symbol failed: already registered")
             return False
 
         config = SymbolConfig(
@@ -463,6 +508,9 @@ class SystemBridge:
         self.state.register_symbol(symbol, config)
         self.state.save_registry()
         _log("add_symbol_with_model", {"symbol": symbol, "model_id": model_id, "activate": activate})
+        syslog("INFO", "System", symbol,
+               f"Symbol added with model '{model_id}' (active={activate})",
+               extra={"model_id": model_id, "activate": activate})
         return True
 
     def reload_model_registry(self) -> int:
@@ -473,6 +521,8 @@ class SystemBridge:
         """
         n = self._model_registry.reload()
         _log("reload_model_registry", {"models_loaded": n})
+        syslog("INFO", "System", "", f"Model registry reloaded: {n} model(s) loaded",
+               extra={"models_loaded": n})
         return n
 
     # ------------------------------------------------------------------
@@ -485,10 +535,12 @@ class SystemBridge:
         if self._exec_layer is not None:
             try:
                 self._exec_layer.close()
+                syslog("INFO", "MCP", "", "MCP execution layer closed during shutdown")
             except Exception:
                 pass
         self.state.set_mcp_connection_state("disconnected")
         _log("shutdown", {})
+        syslog("INFO", "System", "", "SystemBridge shutdown complete")
 
 
 def _log(action_type: str, details: Dict[str, Any]) -> None:

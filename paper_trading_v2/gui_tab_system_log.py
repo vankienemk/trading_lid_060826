@@ -51,6 +51,7 @@ from paper_trading_v2.gui_components import (
     COLOR_SURFACE,
     COLOR_TEXT,
     COLOR_TEXT_SEC,
+    COLOR_BG,
     ConfirmationDialog,
     fmt_time,
 )
@@ -487,6 +488,22 @@ class SystemLogTab(QWidget):
         dialog = QDialog(self)
         dialog.setWindowTitle("📄 Log Entry Detail")
         dialog.setMinimumSize(550, 350)
+        dialog.setStyleSheet(f"""
+            QDialog {{
+                background-color: {COLOR_SURFACE};
+                color: {COLOR_TEXT};
+            }}
+            QPushButton {{
+                background-color: #3a3a3a;
+                color: {COLOR_TEXT};
+                border: 1px solid #555555;
+                border-radius: 4px;
+                padding: 6px 14px;
+            }}
+            QPushButton:hover {{
+                background-color: #4a4a4a;
+            }}
+        """)
         layout = QVBoxLayout(dialog)
         text_edit = QTextEdit()
         text_edit.setReadOnly(True)

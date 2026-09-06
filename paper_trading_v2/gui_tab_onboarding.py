@@ -40,9 +40,63 @@ from paper_trading_v2.gui_components import (
     COLOR_NEUTRAL,
     COLOR_SURFACE,
     COLOR_TEXT,
+    COLOR_BG,
     ConfirmationDialog,
 )
 from paper_trading_v2.gui_bridge import SystemBridge
+from paper_trading_v2.logger_v2 import log as syslog
+
+
+# ---------------------------------------------------------------------------
+# Dark-theme helper for dialogs
+# ---------------------------------------------------------------------------
+
+def _style_dialog(dialog: QDialog) -> None:
+    """Apply dark theme stylesheet to a QDialog."""
+    dialog.setStyleSheet(f"""
+        QDialog {{
+            background-color: {COLOR_SURFACE};
+            color: {COLOR_TEXT};
+        }}
+        QLabel {{
+            color: {COLOR_TEXT};
+        }}
+        QComboBox {{
+            background-color: {COLOR_BG};
+            color: {COLOR_TEXT};
+            border: 1px solid #555555;
+            border-radius: 4px;
+            padding: 4px 8px;
+            min-height: 24px;
+        }}
+        QComboBox::drop-down {{
+            border: none;
+        }}
+        QComboBox QAbstractItemView {{
+            background-color: {COLOR_BG};
+            color: {COLOR_TEXT};
+            selection-background-color: #3a6ea5;
+        }}
+        QLineEdit {{
+            background-color: {COLOR_BG};
+            color: {COLOR_TEXT};
+            border: 1px solid #555555;
+            border-radius: 4px;
+            padding: 4px 8px;
+            min-height: 24px;
+        }}
+        QPushButton {{
+            background-color: #3a3a3a;
+            color: {COLOR_TEXT};
+            border: 1px solid #555555;
+            border-radius: 4px;
+            padding: 6px 14px;
+            min-height: 24px;
+        }}
+        QPushButton:hover {{
+            background-color: #4a4a4a;
+        }}
+    """)
 
 
 class SymbolOnboardingTab(QWidget):
@@ -118,17 +172,18 @@ class SymbolOnboardingTab(QWidget):
         btn_row.addStretch()
         layout.addLayout(btn_row)
 
-        # --- Symbol table: Symbol | Status | Model đang dùng | Active | Actions ---
-        self._table = QTableWidget(0, 5)
+        # --- Symbol table: Symbol | Status | Giá (Bid/Ask) | Model đang dùng | Active | Actions ---
+        self._table = QTableWidget(0, 6)
         self._table.setAlternatingRowColors(True)
         self._table.setHorizontalHeaderLabels(
-            ["Symbol", "Status", "Model đang dùng", "Active", "Actions"]
+            ["Symbol", "Status", "Giá (Bid/Ask)", "Model đang dùng", "Active", "Actions"]
         )
         self._table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
         self._table.horizontalHeader().setSectionResizeMode(0, QHeaderView.Interactive)
-        self._table.horizontalHeader().setSectionResizeMode(4, QHeaderView.Interactive)
+        self._table.horizontalHeader().setSectionResizeMode(5, QHeaderView.Interactive)
         self._table.setColumnWidth(0, 130)
-        self._table.setColumnWidth(4, 260)
+        self._table.setColumnWidth(2, 140)
+        self._table.setColumnWidth(5, 350)
         self._table.verticalHeader().setVisible(False)
         self._table.setSelectionBehavior(QTableWidget.SelectRows)
         self._table.setSelectionMode(QTableWidget.SingleSelection)
@@ -150,6 +205,20 @@ class SymbolOnboardingTab(QWidget):
         for m in models:
             model_names[m.model_id] = f"{m.model_id} ({m.symbol_origin})"
 
+        # Fetch current prices from MCP (bid/ask from market watch)
+        price_map: Dict[str, str] = {}
+        try:
+            watch_symbols = self._bridge.fetch_symbols()
+            for s in watch_symbols:
+                sym_name = s.get("symbol", "") if isinstance(s, dict) else str(s)
+                if isinstance(s, dict):
+                    bid = s.get("bid")
+                    ask = s.get("ask")
+                    if bid is not None and ask is not None:
+                        price_map[sym_name] = f"{bid:.5f} / {ask:.5f}"
+        except Exception:
+            pass
+
         self._table.setRowCount(len(registry))
 
         for row, (name, cfg) in enumerate(sorted(registry.items())):
@@ -166,21 +235,32 @@ class SymbolOnboardingTab(QWidget):
             status_item.setForeground(QColor(status_color))
             self._table.setItem(row, 1, status_item)
 
-            # Model đang dùng
+            # Giá (Bid/Ask) — try exact match, then fallback to partial match
+            price_text = price_map.get(name, price_map.get(f"{name}m", "—"))
+            if price_text == "—" and not name.endswith("m"):
+                for k, v in price_map.items():
+                    if k.upper().startswith(name.upper()) or name.upper().startswith(k.upper()):
+                        price_text = v
+                        break
+            price_item = QTableWidgetItem(price_text)
+            price_item.setForeground(QColor(COLOR_TEXT))
+            self._table.setItem(row, 2, price_item)
+
+            # Model đang dùng (now column 3)
             model_id = cfg.get("model_id") or ""
             model_display = model_names.get(model_id, model_id) if model_id else "—"
             model_item = QTableWidgetItem(model_display)
             model_item.setForeground(
                 QColor(COLOR_POSITIVE) if model_id else QColor(COLOR_NEUTRAL)
             )
-            self._table.setItem(row, 2, model_item)
+            self._table.setItem(row, 3, model_item)
 
-            # Active
+            # Active (now column 4)
             active_item = QTableWidgetItem("✅ Yes" if cfg.get("active", False) else "❌ No")
             active_item.setForeground(
                 QColor(COLOR_POSITIVE) if cfg.get("active", False) else QColor(COLOR_NEUTRAL)
             )
-            self._table.setItem(row, 3, active_item)
+            self._table.setItem(row, 4, active_item)
 
             # Actions row
             actions_widget = QWidget()
@@ -189,9 +269,9 @@ class SymbolOnboardingTab(QWidget):
 
             # Change Model button (for validated symbols only)
             if cfg["status"] == "validated":
-                change_model_btn = QPushButton("🔧 Change Model")
+                change_model_btn = QPushButton("🔧 Model")
                 change_model_btn.setStyleSheet(
-                    f"background-color: {COLOR_WARNING}; color: #1e1e1e; padding: 4px 10px; font-weight: bold;"
+                    f"background-color: {COLOR_WARNING}; color: #1e1e1e; padding: 2px 6px; font-weight: bold; font-size: 11px;"
                 )
                 change_model_btn.clicked.connect(
                     lambda checked, s=name: self._on_change_model(s)
@@ -200,9 +280,9 @@ class SymbolOnboardingTab(QWidget):
 
             # Deactivate / Activate toggle
             if cfg.get("active", False):
-                deactivate_btn = QPushButton("Deactivate")
+                deactivate_btn = QPushButton("Deact")
                 deactivate_btn.setStyleSheet(
-                    f"background-color: {COLOR_NEGATIVE}; color: white; padding: 4px 10px; font-weight: bold;"
+                    f"background-color: {COLOR_NEGATIVE}; color: white; padding: 2px 6px; font-weight: bold; font-size: 11px;"
                 )
                 deactivate_btn.clicked.connect(
                     lambda checked, s=name: self._on_deactivate(s)
@@ -211,7 +291,7 @@ class SymbolOnboardingTab(QWidget):
             else:
                 activate_btn = QPushButton("Activate")
                 activate_btn.setStyleSheet(
-                    f"background-color: {COLOR_POSITIVE}; color: #1e1e1e; padding: 4px 10px; font-weight: bold;"
+                    f"background-color: {COLOR_POSITIVE}; color: #1e1e1e; padding: 2px 6px; font-weight: bold; font-size: 11px;"
                 )
                 activate_btn.clicked.connect(
                     lambda checked, s=name: self._on_activate(s)
@@ -221,7 +301,7 @@ class SymbolOnboardingTab(QWidget):
             # Change Status button (always visible)
             change_status_btn = QPushButton("Status")
             change_status_btn.setStyleSheet(
-                f"background-color: {COLOR_NEUTRAL}; color: white; padding: 4px 8px;"
+                f"background-color: {COLOR_NEUTRAL}; color: white; padding: 2px 6px; font-size: 11px;"
             )
             change_status_btn.clicked.connect(
                 lambda checked, s=name: self._on_change_status(s)
@@ -231,7 +311,7 @@ class SymbolOnboardingTab(QWidget):
             # Remove button (with strong confirmation)
             remove_btn = QPushButton("🗑")
             remove_btn.setStyleSheet(
-                f"background-color: {COLOR_NEGATIVE}; color: white; padding: 4px 8px; font-weight: bold;"
+                f"background-color: {COLOR_NEGATIVE}; color: white; padding: 2px 6px; font-weight: bold; font-size: 11px;"
             )
             remove_btn.clicked.connect(
                 lambda checked, s=name: self._on_remove_symbol(s)
@@ -239,7 +319,7 @@ class SymbolOnboardingTab(QWidget):
             actions_layout.addWidget(remove_btn)
 
             actions_layout.addStretch()
-            self._table.setCellWidget(row, 4, actions_widget)
+            self._table.setCellWidget(row, 5, actions_widget)
 
         self._table.resizeRowsToContents()
 
@@ -293,6 +373,7 @@ class SymbolOnboardingTab(QWidget):
         dialog = QDialog(self)
         dialog.setWindowTitle("Add New Symbol")
         dialog.setMinimumWidth(480)
+        _style_dialog(dialog)
         layout = QVBoxLayout(dialog)
         layout.setSpacing(12)
 
@@ -362,7 +443,7 @@ class SymbolOnboardingTab(QWidget):
         button_box.rejected.connect(dialog.reject)
 
         if dialog.exec() == QDialog.Accepted:
-            name = symbol_combo.currentText().strip().upper()
+            name = symbol_combo.currentText().strip()
             if not name:
                 return
 
@@ -380,6 +461,9 @@ class SymbolOnboardingTab(QWidget):
             self._bridge.state.register_symbol(name, config)
             self._bridge.log_action("add_symbol", {"symbol": name, "model_id": selected_model_id,
                                                     "status": status})
+            syslog("INFO", "System", name,
+                   f"Symbol added: status={status}, model={selected_model_id or 'none'}, active={active}",
+                   extra={"status": status, "model_id": selected_model_id, "active": active})
 
             # If a local path was browsed, log it (registry does not store path yet)
             local_path = self._browse_path_input.text().strip()
@@ -424,6 +508,7 @@ class SymbolOnboardingTab(QWidget):
         dialog = QDialog(self)
         dialog.setWindowTitle(f"Change Model — {symbol}")
         dialog.setMinimumWidth(440)
+        _style_dialog(dialog)
         layout = QVBoxLayout(dialog)
         layout.setSpacing(12)
 
@@ -468,6 +553,9 @@ class SymbolOnboardingTab(QWidget):
                                         {"symbol": symbol,
                                          "old_model": current_model_id,
                                          "new_model": new_model_id})
+                syslog("INFO", "System", symbol,
+                       f"Model changed: {current_model_id or 'none'} → {new_model_id}",
+                       extra={"old_model": current_model_id, "new_model": new_model_id})
             else:
                 from PySide6.QtWidgets import QMessageBox
                 QMessageBox.warning(
@@ -529,6 +617,7 @@ class SymbolOnboardingTab(QWidget):
                 ),
             )
             self._bridge.log_action("activate_symbol", {"symbol": symbol})
+            syslog("INFO", "System", symbol, "Symbol activated — will receive signal-engine calls")
             self._refresh_symbols()
 
     def _on_deactivate(self, symbol: str) -> None:
@@ -552,6 +641,7 @@ class SymbolOnboardingTab(QWidget):
                     ),
                 )
             self._bridge.log_action("deactivate_symbol", {"symbol": symbol})
+            syslog("INFO", "System", symbol, "Symbol deactivated — no longer receives signal-engine calls")
             self._refresh_symbols()
 
     def _on_reload_registry(self) -> None:
@@ -578,6 +668,7 @@ class SymbolOnboardingTab(QWidget):
         dialog = QDialog(self)
         dialog.setWindowTitle(f"Change Status — {symbol}")
         dialog.setMinimumWidth(350)
+        _style_dialog(dialog)
         layout = QVBoxLayout(dialog)
         layout.setSpacing(12)
 
@@ -629,6 +720,9 @@ class SymbolOnboardingTab(QWidget):
                                     {"symbol": symbol,
                                      "old_status": cfg.status,
                                      "new_status": new_status})
+            syslog("INFO", "System", symbol,
+                   f"Status changed: {cfg.status} → {new_status}",
+                   extra={"old_status": cfg.status, "new_status": new_status})
             self._refresh_symbols()
 
     # ------------------------------------------------------------------
@@ -650,4 +744,5 @@ class SymbolOnboardingTab(QWidget):
         if dialog.exec() == ConfirmationDialog.Accepted:
             self._bridge.state.unregister_symbol(symbol)
             self._bridge.log_action("remove_symbol", {"symbol": symbol})
+            syslog("WARNING", "System", symbol, "Symbol removed from registry permanently")
             self._refresh_symbols()

@@ -43,6 +43,7 @@ from paper_trading_v2.gui_components import (
     fmt_time,
 )
 from paper_trading_v2.gui_bridge import SystemBridge
+from paper_trading_v2.logger_v2 import log as syslog
 
 
 # ---------------------------------------------------------------------------
@@ -298,11 +299,13 @@ class AccountTab(QWidget):
         self._reconnect_btn.setText("⏳ Reconnecting...")
         self._reconnect_btn.setEnabled(False)
 
+        syslog("INFO", "MCP", "", "User initiated MCP reconnect from Account tab")
         try:
             success = self._bridge.reconnect_mcp()
             self._bridge.log_action("reconnect_mcp", {"success": success})
         except Exception as e:
             success = False
+            syslog("ERROR", "MCP", "", f"MCP reconnect failed with exception: {e}")
 
         if success:
             self._reconnect_btn.setText("✅ Connected")
@@ -320,6 +323,7 @@ class AccountTab(QWidget):
         # 1) Save to state
         self._bridge.state.set_mcp_token(new_token)
         self._bridge.log_action("set_mcp_token", {"token_set": True})
+        syslog("INFO", "MCP", "", "MCP token updated by user")
 
         # 2) Push live to ExecutionLayer (creates/reconnects the MCP client)
         if self._bridge._exec_layer is not None:
@@ -343,11 +347,15 @@ class AccountTab(QWidget):
         if result == QDialog.Accepted:
             # User confirmed demo
             self._warning_area.setText("")
+            syslog("INFO", "System", "", "User confirmed demo account in RealAccountWarning")
         else:
             # User wants to stop
             self._bridge.state.set_emergency_stop(True)
             self._bridge.log_action("emergency_stop_toggle",
                                     {"reason": "User reported REAL account", "active": True})
+            syslog("CRITICAL", "System", "",
+                   "EMERGENCY STOP ACTIVATED — user reported REAL account",
+                   extra={"account_type": acct_type})
             self._warning_area.setStyleSheet(f"color: {EMERGENCY_RED}; font-size: 16px; font-weight: bold;")
             self._warning_area.setText(
                 "⛔ SYSTEM PAUSED — Real account detected.\n"
