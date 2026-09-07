@@ -96,6 +96,9 @@ class SystemLogTab(QWidget):
         self._bridge = bridge
         self._auto_scroll = True
         self._all_entries: List[Dict[str, Any]] = []
+        # Cap the in-memory buffer: the table rebuilds ALL rows on every
+        # refresh, so an unbounded buffer made this tab freeze the whole GUI.
+        self._MAX_ENTRIES = 2000
         self._build_ui()
 
     # ------------------------------------------------------------------
@@ -264,7 +267,10 @@ class SystemLogTab(QWidget):
         # --- Start timer for periodic refresh ---
         self._timer = QTimer(self)
         self._timer.timeout.connect(self._refresh_log)
-        self._timer.start(500)
+        # 1.5s (was 500ms): rebuilding a multi-thousand-row table at 2Hz froze
+        # the GUI. With the conditional repaint and buffer cap below, 1.5s is
+        # plenty for a responsive live log.
+        self._timer.start(1500)
 
         # --- Initial load from DB ---
         self._load_from_db()
@@ -274,14 +280,37 @@ class SystemLogTab(QWidget):
     # ------------------------------------------------------------------
 
     def _refresh_log(self) -> None:
-        """Called by QTimer every 500ms — poll ring buffer and update table."""
+        """Called by QTimer — poll ring buffer and update table.
+
+        Instead of rebuilding the whole (up to ``_MAX_ENTRIES``) table on every
+        tick, it diffs the previously-visible rows against the newly-visible ones
+        and only removes the front rows that fell out of the window and appends
+        the new rows at the bottom.  The main thread's per-tick cost is thus
+        O(#new + #dropped) item creations instead of O(rows), which keeps the
+        System Log responsive even with a full 2000-entry buffer.
+        """
         buf = get_ring_buffer()
         known_ids = {e.get("id") for e in self._all_entries}
         new_entries = [e for e in buf if e.get("id") not in known_ids]
-        if new_entries:
-            self._all_entries.extend(new_entries)
-            self._rebuild_filter_dropdowns()
-        self._populate_table()
+        if not new_entries:
+            return
+
+        # Snapshot the currently-visible rows (filtered) before mutating.
+        old_visible = self._filter_entries(self._all_entries)
+        old_ids = {e.get("id") for e in old_visible}
+
+        # Trim + append the in-memory buffer (sliding window).
+        self._all_entries.extend(new_entries)
+        if len(self._all_entries) > self._MAX_ENTRIES:
+            self._all_entries = self._all_entries[-self._MAX_ENTRIES:]
+        self._rebuild_filter_dropdowns()
+
+        # Diff by id: rows that left the window (front) and rows that entered (back).
+        new_visible = self._filter_entries(self._all_entries)
+        new_ids = {e.get("id") for e in new_visible}
+        to_remove = [e for e in old_visible if e.get("id") not in new_ids]
+        to_add = [e for e in new_visible if e.get("id") not in old_ids]
+        self._apply_incremental(to_remove, to_add)
 
     def _load_from_db(self) -> None:
         """Initial load: pull recent entries from SQLite."""
@@ -291,6 +320,8 @@ class SystemLogTab(QWidget):
             for r in rows:
                 if r.get("id") not in known_ids:
                     self._all_entries.append(r)
+            if len(self._all_entries) > self._MAX_ENTRIES:
+                self._all_entries = self._all_entries[-self._MAX_ENTRIES:]
             self._rebuild_filter_dropdowns()
             self._populate_table()
         except Exception:
@@ -300,49 +331,65 @@ class SystemLogTab(QWidget):
     # Table population
     # ------------------------------------------------------------------
 
+    def _set_cell_items(self, entry: Dict[str, Any], row: int) -> None:
+        """Populate *row* of the table from a log entry dict (single-cell helper)."""
+        # Timestamp
+        ts = entry.get("timestamp", "")
+        ts_item = QTableWidgetItem(ts)
+        ts_item.setForeground(Qt.GlobalColor.white)
+        self._table.setItem(row, 0, ts_item)
+
+        # Level (colored)
+        level = entry.get("level", "INFO")
+        level_item = QTableWidgetItem(level)
+        colour_hex = LEVEL_COLORS.get(level, COLOR_TEXT)
+        level_item.setForeground(QColor(colour_hex) if colour_hex else Qt.GlobalColor.white)
+        if level == "CRITICAL":
+            font = level_item.font()
+            font.setBold(True)
+            level_item.setFont(font)
+        self._table.setItem(row, 1, level_item)
+
+        # Source
+        source = entry.get("source", "")
+        src_item = QTableWidgetItem(source)
+        src_item.setForeground(Qt.GlobalColor.white)
+        self._table.setItem(row, 2, src_item)
+
+        # Symbol
+        symbol = entry.get("symbol", "")
+        sym_item = QTableWidgetItem(symbol)
+        sym_item.setForeground(Qt.GlobalColor.white)
+        self._table.setItem(row, 3, sym_item)
+
+        # Message
+        msg = entry.get("message", "")
+        msg_item = QTableWidgetItem(msg)
+        msg_item.setForeground(Qt.GlobalColor.white)
+        self._table.setItem(row, 4, msg_item)
+
+        # Store entry data for double-click detail lookup
+        ts_item.setData(Qt.UserRole, entry)
+
     def _populate_table(self) -> None:
-        """Apply filters and rebuild the table display."""
+        """Apply filters and rebuild the table display (full rebuild).
+
+        Used on initial load, filter changes, clear, and buffer overflow.  The
+        steady-state refresh path appends incrementally via ``_append_entries``
+        so the main thread does not pay an O(rows) item-creation cost on every
+        tick.
+        """
         entries = self._filter_entries(self._all_entries)
 
-        self._table.setRowCount(len(entries))
-        for row, entry in enumerate(entries):
-            # Timestamp
-            ts = entry.get("timestamp", "")
-            ts_item = QTableWidgetItem(ts)
-            ts_item.setForeground(Qt.GlobalColor.white)
-            self._table.setItem(row, 0, ts_item)
-
-            # Level (colored)
-            level = entry.get("level", "INFO")
-            level_item = QTableWidgetItem(level)
-            colour_hex = LEVEL_COLORS.get(level, COLOR_TEXT)
-            level_item.setForeground(QColor(colour_hex) if colour_hex else Qt.GlobalColor.white)
-            if level == "CRITICAL":
-                font = level_item.font()
-                font.setBold(True)
-                level_item.setFont(font)
-            self._table.setItem(row, 1, level_item)
-
-            # Source
-            source = entry.get("source", "")
-            src_item = QTableWidgetItem(source)
-            src_item.setForeground(Qt.GlobalColor.white)
-            self._table.setItem(row, 2, src_item)
-
-            # Symbol
-            symbol = entry.get("symbol", "")
-            sym_item = QTableWidgetItem(symbol)
-            sym_item.setForeground(Qt.GlobalColor.white)
-            self._table.setItem(row, 3, sym_item)
-
-            # Message
-            msg = entry.get("message", "")
-            msg_item = QTableWidgetItem(msg)
-            msg_item.setForeground(Qt.GlobalColor.white)
-            self._table.setItem(row, 4, msg_item)
-
-            # Store entry data for double-click detail lookup
-            ts_item.setData(Qt.UserRole, entry)
+        # Rebuilding the table creates thousands of cells; suspend repaints so
+        # Qt paints ONCE at the end instead of once per item (avoids a frozen UI).
+        self._table.setUpdatesEnabled(False)
+        try:
+            self._table.setRowCount(len(entries))
+            for row, entry in enumerate(entries):
+                self._set_cell_items(entry, row)
+        finally:
+            self._table.setUpdatesEnabled(True)
 
         # Update count
         self._count_label.setText(
@@ -351,6 +398,35 @@ class SystemLogTab(QWidget):
 
         # Auto-scroll to bottom
         if self._auto_scroll and len(entries) > 0:
+            self._table.scrollToBottom()
+
+    def _apply_incremental(self, to_remove: List[Dict[str, Any]],
+                           to_add: List[Dict[str, Any]]) -> None:
+        """Apply the sliding-window diff to the table.
+
+        Removes the rows that fell out of the window from the front and appends
+        the new rows at the bottom, rather than rebuilding the whole table.
+        Suspends repaints so Qt paints once at the end.
+        """
+        if not to_remove and not to_add:
+            return
+        self._table.setUpdatesEnabled(False)
+        try:
+            for _ in to_remove:
+                self._table.removeRow(0)
+            start = self._table.rowCount()
+            self._table.setRowCount(start + len(to_add))
+            for i, entry in enumerate(to_add):
+                self._set_cell_items(entry, start + i)
+        finally:
+            self._table.setUpdatesEnabled(True)
+
+        total_entries = len(self._filter_entries(self._all_entries))
+        self._count_label.setText(
+            f"{total_entries} entries (buffer: {len(self._all_entries)})"
+        )
+
+        if self._auto_scroll and total_entries > 0:
             self._table.scrollToBottom()
 
     # ------------------------------------------------------------------

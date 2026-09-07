@@ -19,9 +19,9 @@ models:
   xauusd_v2_h16_20260905:
     model_id: "xauusd_v2_h16_20260905"
     symbol_origin: "XAUUSD"
-    model_path: "research/xauusd-liquidity-sweep/artifacts/models/model.pkl"
-    calibrator_path: "research/xauusd-liquidity-sweep/artifacts/models/calibrator.pkl"
-    feature_schema: "research/xauusd-liquidity-sweep/artifacts/feature_schemas/features.json"
+    model_path: "trading_live/research/xauusd-liquidity-sweep/artifacts/models/model.pkl"
+    calibrator_path: "trading_live/research/xauusd-liquidity-sweep/artifacts/models/calibrator.pkl"
+    feature_schema: "trading_live/research/xauusd-liquidity-sweep/artifacts/feature_schemas/features.json"
     horizon: 16
     target: "outcome_2r_h16"
     metrics:

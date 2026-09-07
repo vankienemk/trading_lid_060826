@@ -14,7 +14,7 @@
       "reasoningEffort": "high",
       "executionPrompt": "Read-only. You audit the lot-size/risk code in trading_live/live/ (engine/, state/, mcp/) — you do NOT modify any live code. You answer the spec's 6 questions with concrete code path:line quotes, and produce a hand-calculable example table (XAUUSD + EURUSD) so the reader can verify the math in 30s without reading code.",
       "joinedAt": 1788682754425,
-      "status": "idle"
+      "status": "removed"
     },
     {
       "id": "9dd1f258-4533-48fa-9e6b-a3e914fe7371",
@@ -25,7 +25,7 @@
       "reasoningEffort": "high",
       "executionPrompt": "Data experiment on the frozen 974-event pool (pipeline_v2/data/labeled_events_v2.parquet). Pre-register the variants BEFORE running, do not add/remove variants after seeing results, and flag the frozen-974 relabel as a PROVISIONAL estimate (not final confirmation) because paper-trading data is insufficient. Produce report + 2 PNG charts.",
       "joinedAt": 1788682754433,
-      "status": "idle"
+      "status": "removed"
     },
     {
       "id": "64175318-400d-4d5d-a705-975840d688e9",
@@ -36,7 +36,7 @@
       "reasoningEffort": "high",
       "executionPrompt": "Descriptive statistics only on the frozen 974-event pool. NO model training, NO parameter tuning, and DO NOT change live entry logic in signal_engine_v2.py regardless of results. Compare hypothetical entries A (pullback) and B (wait one more bar) vs the real entry baseline, produce report + 1 grouped-bar PNG.",
       "joinedAt": 1788682754441,
-      "status": "idle"
+      "status": "removed"
     },
     {
       "id": "80b35889-2ce8-4cd8-a93b-3601124e0697",
@@ -47,7 +47,7 @@
       "reasoningEffort": "high",
       "executionPrompt": "Review each of the 3 reports strictly against the spec's mandatory output format, the common reporting standards (dated filename, bold conclusion first, CI 95% columns, separate PNG referenced by name, threshold reference line, Pre-registered criteria for experiments), and the no-data-leakage principle. Verdict >= needs_revision with concrete findings if anything is missing/wrong.",
       "joinedAt": 1788682754450,
-      "status": "working"
+      "status": "removed"
     }
   ],
   "tasks": [
@@ -1035,14 +1035,14 @@
       "id": "t12",
       "subject": "Review Fix 1 — Risk-based lot sizing",
       "description": "Review the risk-based lot sizing implementation (Fix 1). Verify the lot formula is correct (risk-based, uses stop_distance from Signal Engine, per-symbol point value/contract size from MCP or documented hard-code), size_multiplier is applied BEFORE the lot calc as a risk scalar (not appended after), the final lot is down-rounded to volume_step and clamped to min/max with a hard absolute max-lot cap, the position_sizing config is single-sourced, the EURUSD double-scaling semantics are explicit, and no safety/logging feature regressed. Confirm py_compile passes and a numerical example gives risk ≈ intended %. Flag any correctness/safety defect clearly.",
-      "status": "in_progress",
+      "status": "completed",
       "assignee": "qa_reviewer",
       "dependencies": [
         "t9"
       ],
       "attempt": 1,
       "createdAt": 1788685285431,
-      "updatedAt": 1788686578979,
+      "updatedAt": 1788686898801,
       "kind": "review",
       "objective": "Review the risk-based lot-sizing implementation (Fix 1) against the correctness and safety requirements: risk-based formula, stop_distance source consistency, per-symbol point value/contract size, size_multiplier applied as a risk scalar BEFORE lot calc, broker volume rounding + hard max-lot cap, config single-source resolution, EURUSD double-scaling semantics, no regression to kill-switch/logging, and verifiable numerical risk ≈ intended.",
       "acceptance": [
@@ -1057,7 +1057,78 @@
       ],
       "reviewedTaskId": "t9",
       "attemptId": "862f6f36-5039-49df-bf9a-2d160ff1f006",
-      "reassigning": false
+      "reassigning": false,
+      "output": "REVIEW PASS (verdict=pass) — Fix 1 risk-based lot sizing (t9) is correct and safe. Core function execution_layer_v2.py:67 risk_based_lot = (balance x risk% x base_multiplier)/(stop_distance x point_value x contract_size); size_multiplier applied as risk scalar BEFORE lot calc; stop_distance sourced once from Signal Engine (compute_risk_lot line 289, not recomputed divergently); per-symbol point value/contract size from MCP symbol_info or _DOCUMENTED_CONTRACT_SPECS (XAUUSD 100/1.0, EURUSD 100000/1.0); down-round to volume_step + clamp [min,max] + HARD_MAX_LOT_CAP=1.0. Auto path wires it (send_order volume None -> compute_risk_lot). Single-source config resolved (SYMBOL_CONFIG_DIR in all 3 modules). EURUSD double-scaling fixed (risk_per_trade_pct 1.0 x base_multiplier 0.50 = 0.50%). No regression to kill-switch/log_signal(+risk_lot/lot_source)/magic 20791/LSW-V2 comment/MT5 status. py_compile all 5 OK; numerical: XAU USD 0.43 -> 0.989%, EURUSD 0.25 -> 0.500%, oversized cap/min clamp/down-round all verified.\n\nFINDING (MEDIUM — cross-fix consistency, NOT a blocker; all 8 acceptance criteria pass): Fix 1 added ExecutionLayer.place_order (execution_layer_v2.py:657) as the documented manual-GUI risk-sizing entry point, but it has NO callers — gui_bridge.send_order calls ExecutionLayer.send_order directly with explicit volume=lot_size (Fix 2). Consequences: (a) place_order is dead code; (b) its docstring (lines 660-668) makes a FALSE claim that 'gui_bridge calls _exec_layer.place_order(...)' and that manual+auto 'share identical risk sizing'; (c) the manual GUI path therefore sends the GUI-specified lot (default 0.01) and is NOT risk-sized. Recommendation: reconcile with Fix 2's wiring — either update gui_bridge to call place_order (risk-sized manual) or remove/redocument place_order (manual = explicit user lot). Note t12 scope forbids changing gui_bridge.py, so this is a coordination item for the captain, not a defect in the auto-path sizing. No safety regression: fallback to volume_min + hard cap guarantee no oversized/wrong order.",
+      "verdict": "pass",
+      "acceptanceResults": [
+        {
+          "criterion": "Lot formula is risk-based and used by the live order path; formula/design documented with code path:line.",
+          "status": "passed",
+          "evidence": "execution_layer_v2.py:67 risk_based_lot() with documented formula lot=(balance x risk% x base_multiplier)/(stop_distance x point_value x contract_size); module docstring lines 40-64. Used by AUTO path: send_order default volume=0.01->None (line 541), and when volume is None (signal_polling_engine auto path passes none) it calls compute_risk_lot(line 571). NOTE: place_order (line 657) was added as a documented manual entry point but has NO callers (see finding)."
+        },
+        {
+          "criterion": "size_multiplier applied BEFORE lot calc (risk scalar), not appended after; stop_distance reused from Signal Engine not recomputed divergently.",
+          "status": "passed",
+          "evidence": "risk_based_lot applies base_multiplier as risk scalar in risk_budget = balance x risk% x base_multiplier (line 96) BEFORE dividing by stop value. compute_risk_lot (line 289) takes entry/stop from the caller (Signal Engine cand.stop_price) and computes stop_distance=|entry-stop| (line 299) once; it is NOT recomputed divergently in Execution Layer."
+        },
+        {
+          "criterion": "Per-symbol point value/contract size read from MCP symbol_info or documented hard-code with exact XAUUSD/EURUSD values.",
+          "status": "passed",
+          "evidence": "_symbol_risk_params tries MCP symbol_info (trade_contract_size/contract_size + tick_value/tick_size) and falls back to _DOCUMENTED_CONTRACT_SPECS (line 53): XAUUSD {contract_size 100, point_value 1.0}, EURUSD {contract_size 100000, point_value 1.0}. Exact documented hard-code values present."
+        },
+        {
+          "criterion": "Down-round to volume_step, clamp to min/max, and a hard max-lot cap exist; oversized-order protection verified.",
+          "status": "passed",
+          "evidence": "risk_based_lot: math.floor to volume_step (line 103), clamp to [volume_min,volume_max] (lines 107-110), hard cap max_lot_cap default HARD_MAX_LOT_CAP=1.0 (lines 112-113). Numerically verified: balance 1e9, stop 0.01 -> capped at 1.0; raw 0.43478 -> 0.43; 0.437 -> 0.43 (down, not up); tiny budget -> volume_min 0.01."
+        },
+        {
+          "criterion": "Position_sizing config single-source resolved; EURUSD double-scaling semantics explicit (no accidental 0.25%).",
+          "status": "passed",
+          "evidence": "shared_app_state_v2.py:40 SYMBOL_CONFIG_DIR = trading_live/research/configs/symbols is the single source; signal_engine_v2.py:62 _SYMBOL_CONFIG_DIR=SYMBOL_CONFIG_DIR and risk_guard_v2.py:25 _DEFAULT_SYMBOLS_DIR=SYMBOL_CONFIG_DIR both point to it. EURUSD config: risk_per_trade_pct=1.0, base_multiplier=0.50 -> effective 0.50% (doc comment explicitly notes this fixes the previous accidental 0.25% double-scaling). XAUUSD 1.0x1.0=1.0%."
+        },
+        {
+          "criterion": "Kill-switch, order logging, magic/comment, MT5 status update preserved (no regression).",
+          "status": "passed",
+          "evidence": "send_order retains: kill-switch check (lines 563-565), paper_logger.log_signal with risk_lot/lot_source added (lines 589-603), magic=20791 + comment LSW-V2-{eid} (lines 588, 611), update_mt5_status(connected=True) (line 638), slippage/result logging (lines 630-644). All preserved."
+        },
+        {
+          "criterion": "py_compile passes; a numerical example (XAUUSD + EURUSD) confirms computed lot gives risk approximately intended percent within rounding.",
+          "status": "passed",
+          "evidence": "PYTHONPYCACHEPREFIX=$(mktemp -d) /usr/bin/python3 -m py_compile on all 5 edited modules -> LOT_COMPILE_OK. Numerical: XAUUSD (10k, 1%, 2.30 stop) lot=0.43 -> $98.90 = 0.989% (intended 1.0%); EURUSD (10k, 1%x0.5, 0.002) lot=0.25 -> $50.00 = 0.500% (effective 0.50%). Within rounding."
+        },
+        {
+          "criterion": "No change to gui_bridge.py, frozen data, v2_frozen.yaml, or .venv.",
+          "status": "passed",
+          "evidence": "git status: gui_bridge.py, research/pipeline_v2/data (frozen pool), and v2_frozen.yaml show no Fix-1 change (v2_frozen.yaml is pre-existing untracked; frozen pool tracked & clean). .venv not touched. Fix 1 scope respected."
+        }
+      ],
+      "commandsRun": [
+        {
+          "command": "PYTHONPYCACHEPREFIX=$(mktemp -d) /usr/bin/python3 -m py_compile live/engine/execution_layer_v2.py live/engine/signal_engine_v2.py live/state/risk_guard_v2.py live/state/shared_app_state_v2.py live/mcp/mt5_mcp_client.py",
+          "status": "passed",
+          "evidence": "LOT_COMPILE_OK — all 5 edited modules compile."
+        },
+        {
+          "command": "python risk_based_lot numerical checks (XAUUSD/EURUSD + cap/round/clamp edges)",
+          "status": "passed",
+          "evidence": "XAU lot 0.43 -> $98.90 = 0.989% (intended 1.0%); EUR lot 0.25 -> $50.00 = 0.500% (effective 0.50%); oversized cap -> 1.0; down-round 0.43478->0.43; round-dir 0.437->0.43; min clamp -> 0.01."
+        },
+        {
+          "command": "grep SYMBOL_CONFIG_DIR/_SYMBOL_CONFIG_DIR/_DEFAULT_SYMBOLS_DIR across shared_app_state/signal_engine/risk_guard",
+          "status": "passed",
+          "evidence": "All 3 resolve to the single trading_live/research/configs/symbols (shared_app_state_v2.py:40 single source)."
+        },
+        {
+          "command": "grep -rn place_order across trading_live/live/",
+          "status": "passed",
+          "evidence": "No callers besides the place_order definition/docstring (dead code) — gui_bridge calls send_order (line 370) not place_order."
+        },
+        {
+          "command": "git status gui_bridge.py / pipeline_v2/data / pipeline_v2/configs",
+          "status": "passed",
+          "evidence": "gui_bridge.py unchanged; frozen pool clean; v2_frozen.yaml pre-existing untracked; .venv untouched."
+        }
+      ]
     },
     {
       "id": "t13",
@@ -1209,9 +1280,224 @@
           "evidence": ".venv git-ignored; no new tracked source/report/data/config change from Fix 3 (events_v2.parquet 'M' and untracked analyst scripts/report are pre-existing)."
         }
       ]
+    },
+    {
+      "id": "t15",
+      "subject": "Fix 4 — Wire manual GUI dispatch + risk sizing (hybrid)",
+      "description": "Fix the real gap found by the Fix 1 reviewer (t12): the manual GUI order path neither dispatches nor risk-sizes. Code truth: (1) gui_tab_live.py:469 _on_send_order (the 'Send Order' button handler) does NOT dispatch any order — it only shows a confirm dialog, logs 'send_order_click', and sets a status label 'Order sent'; (2) gui_bridge.send_order (Fix 2) passes explicit volume=lot_size (default 0.01) so it is NOT risk-sized even if called; (3) ExecutionLayer.place_order (Fix 1, execution_layer_v2.py:657, risk-sized manual entry) has NO callers (dead code, and its docstring falsely claims gui_bridge calls it).\n\nUser decision = HYBRID: honor an explicit user lot if provided, otherwise size by risk%. Since there is currently no user lot-size input field in the GUI, the manual path must default to risk-sizing.\n\nRequired changes (scope limited to trading_live/live/gui/):\n1. gui_tab_live.py _on_send_order: after user confirmation, actually dispatch the order via gui_bridge.send_order, passing the selected signal's asset, direction, entry_price, stop_loss, take_profit (and NO explicit lot_size / None) so the manual path is risk-sized by default. Remove the misleading 'Order sent' false status (or set it only after a real dispatch).\n2. gui_bridge.send_order: accept lot_size as Optional[float] = None. If None -> call ExecutionLayer.place_order(...) (risk-sized manual entry; this makes place_order live and its docstring accurate). If an explicit lot_size is provided -> call ExecutionLayer.send_order(volume=lot_size) to honor it (hybrid). Preserve self._mcp_lock, _log, syslog INFO/ERROR handling.\n3. Ensure gui_tab_live does NOT pass a hardcoded 0.01.\n\nDo NOT modify execution_layer_v2.py's risk_based_lot/compute_risk_lot/send_order logic, risk_guard_v2.py, or any config (Fix 1's scope). Just wire the calling side. If ExecutionLayer.place_order's signature/docstring needs a tiny wording tweak, prefer routing the call so it is used and accurate rather than editing execution_layer_v2.py; if you must edit its docstring only, that is acceptable and isolated. The research .venv is now repaired (Fix 3) — you can use trading_live/research/xauusd-liquidity-sweep/.venv/bin/python or /usr/bin/python3 (set PYTHONPYCACHEPREFIX to a writable temp dir for py_compile).",
+      "status": "completed",
+      "assignee": "entry_analyst",
+      "dependencies": [],
+      "attempt": 1,
+      "createdAt": 1788688042583,
+      "updatedAt": 1788688398350,
+      "kind": "implementation",
+      "objective": "Wire the manual GUI order path so it actually dispatches an order (currently gui_tab_live._on_send_order only logs + shows 'Order sent') and is risk-sized by default (hybrid: honor an explicit user lot if provided, otherwise compute the risk-based lot via ExecutionLayer.place_order), making the manual path consistent with the auto path's risk sizing and resolving the dead-code/misleading-docstring place_order.",
+      "inScope": [
+        "trading_live/live/gui/gui_tab_live.py",
+        "trading_live/live/gui/gui_bridge.py"
+      ],
+      "acceptance": [
+        "gui_tab_live.py _on_send_order actually dispatches an order: after the user confirms, it calls gui_bridge.send_order with the selected signal's asset/direction/entry_price/stop_loss/take_profit (it no longer just logs 'send_order_click' and sets 'Order sent').",
+        "The manual path is risk-sized by default (hybrid): when no explicit lot_size is supplied (None), gui_bridge.send_order uses ExecutionLayer.place_order (risk-based) — NOT a fixed 0.01.",
+        "An explicit lot_size, if supplied by a caller/GUI, is honored (passes through to ExecutionLayer.send_order(volume=lot_size)); hybrid semantics implemented.",
+        "ExecutionLayer.place_order is no longer dead code — it is called by the manual path (via gui_bridge), and its docstring is now accurate (no false 'gui_bridge calls place_order' claim).",
+        "gui_tab_live passes volume=None (no hardcoded 0.01) so the default is risk-sized.",
+        "Preserved: confirm dialog semantics, self._mcp_lock, _log, syslog INFO/ERROR on the manual path; kill-switch + risk/lot logging on the auto path unaffected.",
+        "No change to execution_layer_v2.py risk_based_lot/compute_risk_lot/send_order logic, risk_guard_v2.py, configs, frozen data, or .venv.",
+        "py_compile/AST-parse passes for gui_tab_live.py + gui_bridge.py (use PYTHONPYCACHEPREFIX).",
+        "A grep confirms the manual dispatch now reaches gui_bridge.send_order and place_order is referenced as a caller."
+      ],
+      "verify": [
+        "cd trading_live/live && PYTHONPYCACHEPREFIX=$(mktemp -d) /usr/bin/python3 -m py_compile gui/gui_tab_live.py gui/gui_bridge.py && echo FIX4_COMPILE_OK",
+        "grep -rl 'place_order' trading_live/live/gui/ && echo FIX4_PLACEORDER_REFERENCED",
+        "grep -q 'def _on_send_order' trading_live/live/gui/gui_tab_live.py && grep -q 'send_order' trading_live/live/gui/gui_tab_live.py && echo FIX4_DISPATCH_WIRED"
+      ],
+      "deliverables": [
+        "trading_live/live/gui/gui_tab_live.py",
+        "trading_live/live/gui/gui_bridge.py"
+      ],
+      "nonGoals": [
+        "No change to execution_layer_v2.py risk-based lot logic, risk_guard_v2.py, shared_app_state_v2.py, or mt5_mcp_client.py (Fix 1's scope).",
+        "No change to signal_engine_v2.py, configs, frozen data, or the research .venv.",
+        "No change to the auto risk-based sizing path (already correct & safe)."
+      ],
+      "attemptId": "6d70482e-cea5-416c-8500-190b068d697d",
+      "reassigning": false,
+      "output": "Fix 4 (wire manual GUI dispatch + risk sizing, hybrid) COMPLETED.\n\n1) gui_tab_live.py _on_send_order (was a no-op: only logged 'send_order_click' + set 'Order sent'). After the user confirms, it now looks up the confirmed signal from snap['pending_signals'] and dispatches it via self._bridge.send_order(asset=..., direction=..., entry_price=..., stop_loss=..., take_profit=...) with NO lot_size (so risk-sized). Status text is set only after the real dispatch: 'Order sent...' on success, 'Order FAILED... {err}' otherwise. ConfirmDialog semantics preserved.\n\n2) gui_bridge.send_order -> HYBRID. Signature changed to lot_size: Optional[float] = None. When None (default manual path) it routes through ExecutionLayer.place_order(symbol=asset, order_type=order_direction, price=entry_price, sl=stop_loss, tp=take_profit) = risk-sized manual entry (makes place_order live; its docstring is now accurate — gui_bridge does call it). When an explicit lot_size is supplied, it calls ExecutionLayer.send_order(..., volume=lot_size) to honor it. Preserved: self._mcp_lock, _log('send_order',...), syslog('INFO',...) on success, syslog('ERROR',...)+{'ok':False,'error':...} on the except path.\n\nVerification: FIX4_COMPILE_OK, FIX4_PLACEORDER_REFERENCED (gui/gui_bridge.py), FIX4_DISPATCH_WIRED. No hardcoded 0.01 in the manual path; grep shows the only gui_bridge.send_order caller is gui_tab_live._on_send_order.\n\nSCOPE: only gui/gui_tab_live.py and gui/gui_bridge.py changed. execution_layer_v2.py (risk_based_lot/compute_risk_lot/send_order), risk_guard_v2.py, signal_engine_v2.py, configs, frozen data, and .venv untouched. The auto path (signal_polling_engine_v2.py) calls ExecutionLayer.send_order directly and is unaffected.\n\nNOTE for QA: this intentionally re-introduces place_order as a caller in gui_bridge.py (the t10 'no place_order' check was for that task's state before Fix 4). Fix 4 makes place_order live by design.",
+      "changedPaths": [
+        "trading_live/live/gui/gui_tab_live.py",
+        "trading_live/live/gui/gui_bridge.py"
+      ],
+      "acceptanceResults": [
+        {
+          "criterion": "gui_tab_live.py _on_send_order actually dispatches an order: after the user confirms, it calls gui_bridge.send_order with the selected signal's asset/direction/entry_price/stop_loss/take_profit (it no longer just logs 'send_order_click' and sets 'Order sent').",
+          "status": "passed",
+          "evidence": "After dialog.exec() the handler looks up the confirmed signal in snap['pending_signals'] and calls self._bridge.send_order(asset=..., direction=..., entry_price=..., stop_loss=..., take_profit=...). The status label is now set only after this real dispatch, based on the returned result (Order sent only on success; Order FAILED with the error otherwise)."
+        },
+        {
+          "criterion": "The manual path is risk-sized by default (hybrid): when no explicit lot_size is supplied (None), gui_bridge.send_order uses ExecutionLayer.place_order (risk-based) — NOT a fixed 0.01.",
+          "status": "passed",
+          "evidence": "gui_bridge.send_order signature is lot_size: Optional[float] = None; when None it calls self._exec_layer.place_order(symbol=asset, order_type=order_direction, price=entry_price, sl=stop_loss, tp=take_profit), which sizes the lot from compute_risk_lot. No fixed 0.01 is used by the manual path."
+        },
+        {
+          "criterion": "An explicit lot_size, if supplied by a caller/GUI, is honored (passes through to ExecutionLayer.send_order(volume=lot_size)); hybrid semantics implemented.",
+          "status": "passed",
+          "evidence": "In gui_bridge.send_order, when lot_size is not None the else branch calls self._exec_layer.send_order(asset=..., direction=..., entry_price=..., stop_loss=..., take_profit=..., volume=lot_size), honoring the explicit lot exactly."
+        },
+        {
+          "criterion": "ExecutionLayer.place_order is no longer dead code — it is called by the manual path (via gui_bridge), and its docstring is now accurate (no false 'gui_bridge calls place_order' claim).",
+          "status": "passed",
+          "evidence": "gui_bridge.send_order (with the default lot_size=None, used by the manual GUI path) now calls ExecutionLayer.place_order, so the live path reaches it. place_order's existing docstring ('This is the entry point used by the manual GUI bridge (gui_bridge calls _exec_layer.place_order(...))') is now true; no edit to execution_layer_v2.py was required (I routed the call instead, as preferred)."
+        },
+        {
+          "criterion": "gui_tab_live passes volume=None (no hardcoded 0.01) so the default is risk-sized.",
+          "status": "passed",
+          "evidence": "_on_send_order calls self._bridge.send_order(asset/direction/entry_price/stop_loss/take_profit) with NO lot_size argument; grep confirms no '0.01' or 'lot_size' in the manual send path of gui_tab_live.py."
+        },
+        {
+          "criterion": "Preserved: confirm dialog semantics, self._mcp_lock, _log, syslog INFO/ERROR on the manual path; kill-switch + risk/lot logging on the auto path unaffected.",
+          "status": "passed",
+          "evidence": "ConfirmationDialog preserved; self._mcp_lock preserved; _log('send_order',...) preserved; syslog('INFO',...) on success and syslog('ERROR',...) + {'ok': False, 'error': ...} on the except path preserved. The auto path (signal_polling_engine_v2.py) is untouched and its kill-switch + risk/lot logging unaffected."
+        },
+        {
+          "criterion": "No change to execution_layer_v2.py risk_based_lot/compute_risk_lot/send_order logic, risk_guard_v2.py, configs, frozen data, or .venv.",
+          "status": "passed",
+          "evidence": "Only gui/gui_tab_live.py and gui/gui_bridge.py were edited. execution_layer_v2.py, risk_guard_v2.py, signal_engine_v2.py, configs, frozen data, and the .venv were not modified. place_order needed no docstring edit because routing the call makes it accurate."
+        },
+        {
+          "criterion": "py_compile/AST-parse passes for gui_tab_live.py + gui_bridge.py (use PYTHONPYCACHEPREFIX).",
+          "status": "passed",
+          "evidence": "PYTHONPYCACHEPREFIX=$(mktemp -d) /usr/bin/python3 -m py_compile gui/gui_tab_live.py gui/gui_bridge.py -> echoed FIX4_COMPILE_OK."
+        },
+        {
+          "criterion": "A grep confirms the manual dispatch now reaches gui_bridge.send_order and place_order is referenced as a caller.",
+          "status": "passed",
+          "evidence": "grep -rl 'place_order' gui/ -> gui/gui_bridge.py (echoed FIX4_PLACEORDER_REFERENCED); gui_tab_live.py has 'def _on_send_order' and references 'send_order' (echoed FIX4_DISPATCH_WIRED)."
+        }
+      ],
+      "commandsRun": [
+        {
+          "command": "cd trading_live/live && PYTHONPYCACHEPREFIX=$(mktemp -d) /usr/bin/python3 -m py_compile gui/gui_tab_live.py gui/gui_bridge.py && echo FIX4_COMPILE_OK",
+          "status": "passed",
+          "exitCode": 0,
+          "evidence": "echoed FIX4_COMPILE_OK; both files compile."
+        },
+        {
+          "command": "grep -rl 'place_order' trading_live/live/gui/ && echo FIX4_PLACEORDER_REFERENCED",
+          "status": "passed",
+          "exitCode": 0,
+          "evidence": "grep -rl returned gui/gui_bridge.py and echoed FIX4_PLACEORDER_REFERENCED; place_order is now referenced as a caller in gui_bridge (no longer dead code)."
+        },
+        {
+          "command": "grep -q 'def _on_send_order' trading_live/live/gui/gui_tab_live.py && grep -q 'send_order' trading_live/live/gui/gui_tab_live.py && echo FIX4_DISPATCH_WIRED",
+          "status": "passed",
+          "exitCode": 0,
+          "evidence": "echoed FIX4_DISPATCH_WIRED; gui_tab_live has _on_send_order and the manual path reaches send_order."
+        }
+      ]
+    },
+    {
+      "id": "t16",
+      "subject": "Review Fix 4 — Manual GUI dispatch + risk sizing",
+      "description": "Review Fix 4 (wire manual GUI dispatch + risk sizing, hybrid). Confirm gui_tab_live._on_send_order actually dispatches an order via gui_bridge.send_order (no longer just logs 'send_order_click'/'Order sent'), the manual path is risk-sized by default (gui_bridge.send_order(lot_size=None) → ExecutionLayer.place_order), an explicit lot_size is honored (hybrid), ExecutionLayer.place_order is now called/used (not dead code) with an accurate docstring, gui_tab_live passes no hardcoded 0.01, and lock/_log/syslog INFO/ERROR preserved. No change to Fix 1's files/configs/frozen data/.venv. Verify with py_compile (PYTHONPYCACHEPREFIX) and greps. Verdict pass only if genuinely conforming; flag needs_revision with specific findings otherwise.",
+      "status": "completed",
+      "assignee": "qa_reviewer",
+      "dependencies": [
+        "t15"
+      ],
+      "attempt": 1,
+      "createdAt": 1788688063392,
+      "updatedAt": 1788688646875,
+      "kind": "review",
+      "objective": "Review Fix 4 (manual GUI dispatch + risk sizing, hybrid): confirm _on_send_order actually dispatches, the manual path is risk-sized by default (None → place_order), an explicit lot is honored, place_order is no longer dead code with an accurate docstring, no hardcoded 0.01, and lock/_log/syslog preserved, with no change to Fix 1 files/configs/frozen data/.venv.",
+      "acceptance": [
+        "gui_tab_live.py _on_send_order actually dispatches (calls gui_bridge.send_order with the signal's asset/direction/entry/stop/target after confirm) — it no longer merely logs 'send_order_click' and sets 'Order sent'.",
+        "Manual path is risk-sized by default: gui_bridge.send_order(lot_size=None) → ExecutionLayer.place_order (risk-based), NOT a fixed 0.01.",
+        "Hybrid honored: an explicit lot_size is passed through to ExecutionLayer.send_order(volume=lot_size).",
+        "ExecutionLayer.place_order is now referenced/called (no longer dead code) and its docstring is accurate.",
+        "gui_tab_live does not pass a hardcoded 0.01 to the manual path.",
+        "self._mcp_lock, _log, syslog INFO/ERROR preserved on the manual path.",
+        "py_compile/AST-parse passes for gui_tab_live.py + gui_bridge.py (PYTHONPYCACHEPREFIX).",
+        "No change to execution_layer_v2.py risk logic, risk_guard_v2.py, configs, frozen data, or .venv."
+      ],
+      "reviewedTaskId": "t15",
+      "attemptId": "aeef913b-8b35-45c3-8aa3-ca17a3f0a295",
+      "reassigning": false,
+      "output": "REVIEW PASS (verdict=pass) — Fix 4 (manual GUI dispatch + risk-sizing hybrid) fully resolves the manual-path gap. gui_tab_live._on_send_order (line 469) now genuinely dispatches: after confirm it locates the signal in snap['pending_signals'] and calls gui_bridge.send_order(asset/direction/entry/stop/target) with NO lot_size, setting 'Order sent' only on ok / 'Order FAILED... {err}' otherwise. gui_bridge.send_order is a correct hybrid (lot_size: Optional[float]=None); None → ExecutionLayer.place_order (risk-sized), explicit → send_order(volume=lot_size). place_order is now live (gui_bridge.py:381 calls it) and its docstring (execution_layer_v2.py:660-668) is accurate. No hardcoded 0.01; _mcp_lock/_log/syslog INFO-ERROR preserved; AST_BOTH_OK + COMPILE_BOTH_OK; Fix 1 risk logic (risk_based_lot, compute_risk_lot, send_order volume=None, HARD_MAX_LOT_CAP=1.0) intact and no change to risk_guard/configs/frozen data/.venv.\n\nINFO note (cosmetic, not a defect): because place_order computes the risk lot and passes it as an explicit volume to send_order, the returned send_order-level metadata reports lot_source='explicit'/risk_lot=None rather than 'risk' — the ORDER IS correctly risk-sized (e.g. 0.43), only the log attribution field says 'explicit'. If desired, place_order could relay the risk flag downstream, but this does not affect correctness/safety.",
+      "verdict": "pass",
+      "acceptanceResults": [
+        {
+          "criterion": "gui_tab_live.py _on_send_order actually dispatches (calls gui_bridge.send_order with the signal's asset/direction/entry/stop/target after confirm) — it no longer merely logs 'send_order_click' and sets 'Order sent'.",
+          "status": "passed",
+          "evidence": "gui_tab_live.py:485-517: after confirm, locates the signal in snap['pending_signals'], calls self._bridge.send_order(asset, direction, entry_price, stop_loss, take_profit) with NO lot_size; sets 'Order sent' only if ok, else 'Order FAILED... {err}'. Logs dispatched:True/False. Signal-not-found handled."
+        },
+        {
+          "criterion": "Manual path is risk-sized by default: gui_bridge.send_order(lot_size=None) → ExecutionLayer.place_order (risk-based), NOT a fixed 0.01.",
+          "status": "passed",
+          "evidence": "gui_bridge.py:358 lot_size: Optional[float]=None; lines 377-387: when None routes to _exec_layer.place_order(...), which computes the risk lot via compute_risk_lot. No hardcoded 0.01."
+        },
+        {
+          "criterion": "Hybrid honored: an explicit lot_size is passed through to ExecutionLayer.send_order(volume=lot_size).",
+          "status": "passed",
+          "evidence": "gui_bridge.py:388-397 else branch → _exec_layer.send_order(..., volume=lot_size). Both branches present."
+        },
+        {
+          "criterion": "ExecutionLayer.place_order is now referenced/called (no longer dead code) and its docstring is accurate.",
+          "status": "passed",
+          "evidence": "gui_bridge.py:381 calls _exec_layer.place_order — grep confirms this is the only external caller. execution_layer_v2.py:660-668 docstring ('gui_bridge calls _exec_layer.place_order(...)'; manual+auto share risk sizing) is now accurate."
+        },
+        {
+          "criterion": "gui_tab_live does not pass a hardcoded 0.01 to the manual path.",
+          "status": "passed",
+          "evidence": "_on_send_order passes signal fields (asset/direction/entry/stop/target) with no lot_size; grep for '0.01'/volume=0.01 in the manual path returns nothing; gui_bridge default lot_size=None."
+        },
+        {
+          "criterion": "self._mcp_lock, _log, syslog INFO/ERROR preserved on the manual path.",
+          "status": "passed",
+          "evidence": "with self._mcp_lock (line 376); _log('send_order',...) on success (398) and error (407); syslog INFO on success (401-404); except path syslog ERROR + return {'ok': False, 'error'} (406-411)."
+        },
+        {
+          "criterion": "py_compile/AST-parse passes for gui_tab_live.py + gui_bridge.py (PYTHONPYCACHEPREFIX).",
+          "status": "passed",
+          "evidence": "PYTHONPYCACHEPREFIX=$(mktemp -d) /usr/bin/python3: AST_BOTH_OK (ast.parse both) + COMPILE_BOTH_OK (py_compile both)."
+        },
+        {
+          "criterion": "No change to execution_layer_v2.py risk logic, risk_guard_v2.py, configs, frozen data, or .venv.",
+          "status": "passed",
+          "evidence": "git diff --stat shows only gui_bridge.py (46) + gui_tab_live.py (43) changed; Fix 1 risk functions intact (risk_based_lot:67, compute_risk_lot:289, send_order volume=None:541, HARD_MAX_LOT_CAP=1.0:64, place_order:657); git status shows no Fix 4 change to risk_guard_v2.py/configs/frozen data/.venv."
+        }
+      ],
+      "commandsRun": [
+        {
+          "command": "PYTHONPYCACHEPREFIX=$(mktemp -d) /usr/bin/python3 -m py_compile gui/gui_bridge.py gui/gui_tab_live.py + ast.parse both",
+          "status": "passed",
+          "evidence": "AST_BOTH_OK + COMPILE_BOTH_OK."
+        },
+        {
+          "command": "grep -rn place_order gui/gui_bridge.py",
+          "status": "passed",
+          "evidence": "gui_bridge.py:381 _exec_layer.place_order(...) — place_order is now called (not dead code)."
+        },
+        {
+          "command": "grep hardcoded 0.01 / lot_size default in manual path",
+          "status": "passed",
+          "evidence": "No hardcoded 0.01; gui_bridge.send_order default lot_size=None."
+        },
+        {
+          "command": "git diff --stat gui_bridge.py gui_tab_live.py",
+          "status": "passed",
+          "evidence": "Only these 2 files changed (74+/15-); confirms Fix 4 scope."
+        },
+        {
+          "command": "grep risk_based_lot/compute_risk_lot/send_order volume=None/HARD_MAX_LOT_CAP in execution_layer_v2.py",
+          "status": "passed",
+          "evidence": "All Fix 1 risk logic intact and unchanged."
+        }
+      ]
     }
   ],
-  "taskSeq": 14,
+  "taskSeq": 16,
   "phase": "running",
   "approvedAt": 1788683143316
 }

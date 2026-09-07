@@ -1,0 +1,120 @@
+{
+  "name": "send-order-schema-fix",
+  "id": "send-order-schema-fix",
+  "description": "Investigate and fix the live send-order failure \"Tool 'trade_send_market_order' type must be specified\" (EURUSDm sell @ 1.15771) by establishing the real trade_send_market_order MCP contract and correcting execution_layer_v2.py send_order/place_order.",
+  "captainSessionId": "session-30ccd718-54a4-4047-b6d1-b5884c4f8b94",
+  "createdAt": 1788700407547,
+  "members": [
+    {
+      "id": "",
+      "name": "mcp_analyst",
+      "role": "Order-contract researcher",
+      "provider": "deepseek-official",
+      "model": "deepseek-v4-flash-vision-exp",
+      "reasoningEffort": "high",
+      "joinedAt": 1788700412640,
+      "status": "removed"
+    },
+    {
+      "id": "",
+      "name": "order_fixer",
+      "role": "Execution-layer implementer",
+      "provider": "deepseek-official",
+      "model": "deepseek-v4-flash-vision-exp",
+      "reasoningEffort": "high",
+      "joinedAt": 1788700412656,
+      "status": "removed"
+    },
+    {
+      "id": "",
+      "name": "qa_reviewer",
+      "role": "QA reviewer",
+      "provider": "deepseek-official",
+      "model": "deepseek-v4-flash-vision-exp",
+      "reasoningEffort": "high",
+      "joinedAt": 1788700412673,
+      "status": "removed"
+    }
+  ],
+  "tasks": [
+    {
+      "id": "t1",
+      "subject": "Establish trade_send_market_order MCP contract",
+      "description": "Determine the EXACT schema the external MT5 MCP server requires for trade_send_market_order, specifically what value the `type` argument must take and the full required/optional parameter set. The live server is at http://127.0.0.1:22346/mcp and returns HTTP 401 without auth. Recover MCP_TOKEN from the running app state (SharedAppState.mcp_token) or environment WITHOUT asking the user for it and WITHOUT printing it. Read-only calls (tools/list, tools/call with a clearly invalid-but-schema-valid request) are fine; NEVER fire a real order for testing.\n\nDeliverables: (1) a short contract note (markdown) recording the required params, the `type` value format (string 'buy'/'sell' vs integer 0/1 vs other field name), and any enum/constraint, backed by evidence (copy of the inputSchema from tools/list, or a reproduced response). (2) A faithful MOCK MCP server script (e.g. under trading_live/live/mcp/ or a tests/ location) that reproduces the EXACT \"type must be specified\" error when `type` is absent/wrong-format and returns a successful fill (retcode 10009) when the correct contract is used — so the fix can be verified WITHOUT hitting real orders. Put the contract note and mock server in a location that does NOT overlap execution_layer_v2.py (e.g. trading_live/live/mcp/tests/ or docs/).\n\nKey open questions to answer with evidence: is `type` required and is it a string enum or integer? Is the field actually named `type`? Does it also require `symbol`/`volume`/`price`/`sl`/`tp`/`comment`/`magic`? Why did sending integer type=1 (sell) still trigger \"type must be specified\"?",
+      "status": "pending",
+      "dependencies": [],
+      "attempt": 0,
+      "createdAt": 1788700422585,
+      "updatedAt": 1788702293025,
+      "kind": "work",
+      "handoffId": "d64e81ad-8f67-4dd6-84fd-9e4b32f71952",
+      "reassigning": false
+    },
+    {
+      "id": "t2",
+      "subject": "Fix send_order/place_order for trade_send_market_order contract",
+      "description": "Fix ExecutionLayer.send_order and place_order in trading_live/live/engine/execution_layer_v2.py so the trade_send_market_order call uses the REAL contract established in t1. Replace the current guess (sending integer `type` = 0/1 plus `order_type`) with whatever the server actually requires (e.g. string 'buy'/'sell', or a differently-named field), while preserving the envelope-unwrap (_parse_mcp_response) and the error-surfaceing logic already present. Ensure both the automated path (volume=None) and the manual GUI path (place_order -> send_order) use the corrected arguments, and that a successful mock fill is still parsed as success.\n\nUse the faithful mock MCP server from t1 to verify WITHOUT sending real orders. Do not modify gui_bridge.py, mt5_mcp_client.py, configs, or the MCP server itself unless strictly necessary (prefer confining changes to execution_layer_v2.py).",
+      "status": "pending",
+      "dependencies": [
+        "t1"
+      ],
+      "attempt": 0,
+      "createdAt": 1788700432986,
+      "updatedAt": 1788702293025,
+      "kind": "implementation",
+      "objective": "Make the live send-order call for trade_send_market_order conform to the real MCP contract so it no longer fails with \"Tool 'trade_send_market_order' type must be specified\", verified against a faithful mock server without sending real orders.",
+      "inScope": [
+        "trading_live/live/engine/execution_layer_v2.py"
+      ],
+      "acceptance": [
+        "send_order/place_order build the trade_send_market_order arguments from the REAL contract established in t1 (correct `type` value format + required params)",
+        "Calling send_order for a buy AND a sell against the faithful mock MCP server from t1 no longer produces 'Tool 'trade_send_market_order' type must be specified'",
+        "On a successful mock fill (retcode 10009) send_order returns success=True, order_sent=True and surfaces price",
+        "On a mock rejection send_order surfaces the REAL reason (retcode/error text) instead of 'Unknown error'",
+        "The automated order path (volume=None risk-sizing) and the manual GUI path (place_order) are both covered and unchanged in behaviour",
+        "Change is confined to trading_live/live/engine/execution_layer_v2.py; repository passes a python syntax/compile check"
+      ],
+      "verify": [
+        "python -m py_compile trading_live/live/engine/execution_layer_v2.py",
+        "Run the fix against the faithful mock MCP server from t1 for a buy and a sell; assert no 'type must be specified' error and assert success=True/order_sent=True on a mock retcode-10009 fill",
+        "Run a mock rejection case and assert the real reason is surfaced (not 'Unknown error')"
+      ],
+      "nonGoals": [
+        "Do not change the MCP client or MCP server contract",
+        "Do not change GUI code (gui_bridge/gui_tab_live)",
+        "Do not fire real MT5 orders during verification",
+        "Do not alter risk-lot sizing behaviour"
+      ],
+      "handoffId": "d35e9300-e5c3-4caa-84fc-ea7f2d98a10a",
+      "reassigning": false
+    },
+    {
+      "id": "t3",
+      "subject": "Review send-order contract fix",
+      "description": "Independently review the send-order fix (t2) against the contract evidence (t1) and the acceptance criteria. Verify the reproduced 'type must be specified' failure is gone, that correct fills are reported as success with real price and real rejection reasons are surfaced, and that no scope creep or regression occurred. Reject with specific findings if the contract was not actually followed, if verification was done against a mock that does not faithfully reproduce the server behaviour, or if real orders were at risk.",
+      "status": "pending",
+      "dependencies": [
+        "t2"
+      ],
+      "attempt": 0,
+      "createdAt": 1788700456103,
+      "updatedAt": 1788702293025,
+      "kind": "review",
+      "objective": "Independently confirm the trade_send_market_order send-order fix is correct, contract-conformant, regression-safe, and verified without firing real orders.",
+      "acceptance": [
+        "The fix in execution_layer_v2.py matches the contract evidence documented in t1 (field name and `type` value format)",
+        "Evidence exists that a buy and a sell against the faithful mock MCP server no longer trigger 'Tool 'trade_send_market_order' type must be specified'",
+        "The fix correctly distinguishes success (retcode 10009) from rejection and surfaces the real rejection reason",
+        "No regression to the automated risk-sized path or the manual GUI place_order path",
+        "Change scope is confined to execution_layer_v2.py (plus the t1 mock/contract artifacts), with no changes to MCP client/server, GUI, or configs",
+        "The fix is syntactically valid and can be imported"
+      ],
+      "reviewedTaskId": "t2",
+      "handoffId": "444c7b17-8c98-41e4-9f1e-66337039fd66",
+      "reassigning": false
+    }
+  ],
+  "taskSeq": 3,
+  "phase": "staged",
+  "planReviewState": "awaiting_review"
+}

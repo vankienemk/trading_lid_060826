@@ -1,0 +1,205 @@
+{
+  "name": "btcusd-m15-train-test",
+  "id": "btcusd-m15-train-test",
+  "description": "Train and test a BTCUSD M15 model using data BTCUSDm_M1_202107030000_202609060000.csv, and produce a full report.",
+  "captainSessionId": "session-ea137532-015b-4016-bf94-3b21a4fed815",
+  "createdAt": 1788777040957,
+  "members": [
+    {
+      "id": "0d886499-d735-414d-8be1-2a5bd94dae5b",
+      "name": "data-engineer",
+      "role": "Data pipeline engineer — owns requirements, M1→M15 resampling, override config, and running the pipeline stages",
+      "provider": "modlens-opencode-go",
+      "model": "deepseek-v4-flash",
+      "joinedAt": 1788777076022,
+      "status": "idle"
+    },
+    {
+      "id": "16b36023-a947-419f-8837-25e64233d555",
+      "name": "model-engineer",
+      "role": "Model training engineer — owns implementation of the BTCUSD M15 training run + artifacts + metrics",
+      "provider": "modlens-opencode-go",
+      "model": "deepseek-v4-flash",
+      "joinedAt": 1788777076033,
+      "status": "working"
+    },
+    {
+      "id": "99c81805-50ae-4498-a8e4-fc081dea16fb",
+      "name": "reviewer",
+      "role": "QA/verification engineer — runs verification gates and reviews the training against acceptance criteria",
+      "provider": "modlens-opencode-go",
+      "model": "deepseek-v4-flash",
+      "joinedAt": 1788777076042,
+      "status": "idle"
+    },
+    {
+      "id": "8818ecad-453d-45eb-afaa-ab6a186f6697",
+      "name": "reporter",
+      "role": "Reporting engineer — compiles the full report and registers the BTCUSD model",
+      "provider": "modlens-opencode-go",
+      "model": "deepseek-v4-flash",
+      "joinedAt": 1788777076052,
+      "status": "idle"
+    }
+  ],
+  "tasks": [
+    {
+      "id": "t1",
+      "subject": "Requirements: BTCUSD M15 training spec",
+      "description": "Define concrete acceptance criteria for training and testing a BTCUSD M15 model using the xauusd-liquidity-sweep pipeline as base. Specify: data source (BTCUSDm_M1_202107030000_202609060000.csv, M1 → resampled to M15), overriding symbol=BTCUSD following the EURUSD cross-asset precedent, the config/stage list (audit → events → dataset → train), expected artifacts (model.pkl, calibrator.pkl, feature_schema under pipeline_v2/artifacts/models/btcusd/), required metrics (PR-AUC primary on test + walk-forward, plus ROC-AUC/Brier/accuracy where produced), and full-report deliverable contents. No look-ahead must be preserved (causal resampling, closed-HTF merge, causal labeling).",
+      "status": "claimed",
+      "dependencies": [],
+      "attempt": 1,
+      "createdAt": 1788777082241,
+      "updatedAt": 1788777137994,
+      "kind": "requirements",
+      "objective": "Produce a written acceptance contract for the BTCUSD M15 training run.",
+      "inScope": [
+        "trading_live/research/xauusd-liquidity-sweep/"
+      ],
+      "acceptance": [
+        "Spec states exact data path, resampling M1→M15 method, and override config path",
+        "Lists the 4 pipeline stages to run in order with their CLI entry points",
+        "Lists required output artifacts and their exact relative paths",
+        "Specifies primary metric (PR-AUC) on test and walk-forward, plus secondary metrics",
+        "Defines the full-report deliverable contents",
+        "Confirms no-look-ahead constraints (causal resample, closed HTF, causal label)"
+      ],
+      "assignee": "model-engineer",
+      "attemptId": "94502c64-c114-4654-aadd-ad70f07d6e08",
+      "reassigning": false
+    },
+    {
+      "id": "t2",
+      "subject": "Implement: BTCUSD M15 training run",
+      "description": "Implement the BTCUSD M15 training run following the requirements spec and the established EURUSD cross-asset precedent in the xauusd-liquidity-sweep pipeline. Create trading_live/research/xauusd-liquidity-sweep/configs/btcusd_override.yaml (symbol=BTCUSD, input = the M1 CSV resampled to M15, output parquet). Set up M1→M15 resampling (causal; preserve raw M1). Run the four CLI stages in order: xauusd-audit, xauusd-events, xauusd-dataset, xauusd-train using the override config. Use the existing .venv in the pipeline dir. Ensure artifacts land under pipeline_v2/artifacts/models/btcusd/ (model.pkl, calibrator.pkl, feature_schema). Produce test and walk-forward metrics (PR-AUC primary). Do NOT touch XAUUSD or EURUSD artifacts/data — data isolation is mandatory.",
+      "status": "pending",
+      "assignee": "data-engineer",
+      "dependencies": [
+        "t1"
+      ],
+      "attempt": 0,
+      "createdAt": 1788777088466,
+      "updatedAt": 1788777088466,
+      "kind": "implementation",
+      "objective": "Run the complete BTCUSD M15 train pipeline end-to-end and produce artifacts + metrics.",
+      "inScope": [
+        "trading_live/research/xauusd-liquidity-sweep/configs/btcusd_override.yaml",
+        "trading_live/research/xauusd-liquidity-sweep/data/processed/",
+        "trading_live/research/xauusd-liquidity-sweep/pipeline_v2/artifacts/models/btcusd/",
+        "trading_live/research/xauusd-liquidity-sweep/pipeline_v2/reports/metrics/"
+      ],
+      "outOfScope": [
+        "trading_live/research/xauusd-liquidity-sweep/artifacts/",
+        "trading_live/research/xauusd-liquidity-sweep/pipeline_v2/artifacts/models/eurusd/",
+        "trading_live/research/xauusd-liquidity-sweep/pipeline_v2/artifacts/models/model.pkl",
+        "trading_live/research/xauusd-liquidity-sweep/pipeline_v2/artifacts/models/calibrator.pkl",
+        "trading_live/research/xauusd-liquidity-sweep/data/raw/XAUUSD*",
+        "trading_live/research/xauusd-liquidity-sweep/data/raw/EURUSD*"
+      ],
+      "acceptance": [
+        "btcusd_override.yaml created under trading_live/research/xauusd-liquidity-sweep/configs/ with symbol=BTCUSD and correct M1→M15 input/output paths",
+        "M1→M15 resampling applied so the pipeline runs on M15 base candles (raw M1 preserved)",
+        "All 4 pipeline stages (audit, events, dataset, train) ran successfully on BTCUSD via the override config",
+        "Artifacts exist under pipeline_v2/artifacts/models/btcusd/: model.pkl, calibrator.pkl, feature_schema",
+        "Test metrics generated: PR-AUC (primary) + walk-forward PR-AUC + secondary metrics where pipeline produces them",
+        "No XAUUSD/EURUSD artifacts were overwritten or touched (data isolation per project rule)"
+      ],
+      "verify": [
+        "test -f trading_live/research/xauusd-liquidity-sweep/configs/btcusd_override.yaml",
+        "test -f trading_live/research/xauusd-liquidity-sweep/pipeline_v2/artifacts/models/btcusd/model.pkl",
+        "test -f trading_live/research/xauusd-liquidity-sweep/pipeline_v2/artifacts/models/btcusd/calibrator.pkl",
+        "ls trading_live/research/xauusd-liquidity-sweep/pipeline_v2/reports/metrics/btcusd*",
+        "git status --porcelain trading_live/research/xauusd-liquidity-sweep/artifacts/ | grep -q '' || echo 'XAUUSD/EURUSD artifacts untouched'"
+      ]
+    },
+    {
+      "id": "t3",
+      "subject": "Verify: BTCUSD M15 training run artifacts + metrics",
+      "description": "Run the required verification commands for the BTCUSD M15 training run and confirm artifacts, metrics, and data isolation. Verify model.pkl/calibrator.pkl/feature_schema exist under pipeline_v2/artifacts/models/btcusd/, btcusd_override.yaml exists, metrics reports (test PR-AUC + walk-forward PR-AUC) are produced, no no-look-ahead violations, CI gate passes if pipeline code changed, and that no XAUUSD/EURUSD artifacts or raw data were modified.",
+      "status": "pending",
+      "assignee": "reviewer",
+      "dependencies": [
+        "t2"
+      ],
+      "attempt": 0,
+      "createdAt": 1788777093274,
+      "updatedAt": 1788777093274,
+      "kind": "verification",
+      "objective": "Verify the BTCUSD M15 training run against the acceptance criteria.",
+      "inScope": [
+        "trading_live/research/xauusd-liquidity-sweep/"
+      ],
+      "acceptance": [
+        "All verify commands pass",
+        "model.pkl + calibrator.pkl + feature_schema present under pipeline_v2/artifacts/models/btcusd/",
+        "Test PR-AUC and walk-forward PR-AUC values are produced and reported",
+        "No no-look-ahead violations in the BTCUSD data path (causal resample/HTF/label)",
+        "CI gate / relevant unit + no_lookahead tests pass for changed pipeline code (if any)",
+        "XAUUSD and EURUSD artifacts untouched"
+      ],
+      "verify": [
+        "test -f trading_live/research/xauusd-liquidity-sweep/configs/btcusd_override.yaml",
+        "test -f trading_live/research/xauusd-liquidity-sweep/pipeline_v2/artifacts/models/btcusd/model.pkl",
+        "test -f trading_live/research/xauusd-liquidity-sweep/pipeline_v2/artifacts/models/btcusd/calibrator.pkl",
+        "ls trading_live/research/xauusd-liquidity-sweep/pipeline_v2/artifacts/models/btcusd/feature_schema* 2>/dev/null || ls trading_live/research/xauusd-liquidity-sweep/pipeline_v2/artifacts/feature_schemas/ 2>/dev/null",
+        "test -f trading_live/research/xauusd-liquidity-sweep/pipeline_v2/reports/metrics/btcusd_test_metrics.json"
+      ]
+    },
+    {
+      "id": "t4",
+      "subject": "Review (round 1): BTCUSD M15 training run",
+      "description": "Review the BTCUSD M15 training run (task t2 implementation) against its acceptance criteria. Confirm the model/calibrator/feature_schema artifacts exist under pipeline_v2/artifacts/models/btcusd/, the override config is correct, the test and walk-forward PR-AUC metrics are produced and plausible for a liquidity-sweep model, no-look-ahead was preserved, and XAUUSD/EURUSD data isolation held. Verdict must be pass, needs_revision, or reject with structured findings.",
+      "status": "pending",
+      "assignee": "reviewer",
+      "dependencies": [
+        "t3"
+      ],
+      "attempt": 0,
+      "createdAt": 1788777097609,
+      "updatedAt": 1788777097609,
+      "kind": "review",
+      "round": 1,
+      "objective": "Pass or reject the BTCUSD M15 training implementation with structured findings.",
+      "inScope": [
+        "trading_live/research/xauusd-liquidity-sweep/pipeline_v2/artifacts/models/btcusd/",
+        "trading_live/research/xauusd-liquidity-sweep/pipeline_v2/reports/metrics/btcusd*",
+        "trading_live/research/xauusd-liquidity-sweep/configs/btcusd_override.yaml"
+      ],
+      "acceptance": [
+        "Verdict is pass only if the implementation genuinely meets the acceptance criteria (artifacts present, metrics produced, no isolation breach)",
+        "Review reports the actual test PR-AUC / walk-forward PR-AUC values and their plausibility",
+        "Any gap is reported as a structured finding (id, severity, problem, requiredFix)"
+      ],
+      "reviewedTaskId": "t2"
+    },
+    {
+      "id": "t5",
+      "subject": "Integrate: full BTCUSD M15 report + model registry",
+      "description": "Compile the full BTCUSD M15 training report. Write a complete markdown report in the pipeline reports dir (trading_live/research/xauusd-liquidity-sweep/pipeline_v2/reports/metrics/btcusd_report.md or similar) covering data overview, M1→M15 resampling, events/dataset stats, model + calibration, test metrics (PR-AUC primary), walk-forward results, score-bucket performance, costs, and limitations. Register the BTCUSD model in configs/models/index.yaml with a fresh model_id (e.g. btcusd_v2_h16_<date>, symbol_origin BTCUSD, paths under btcusd/) without touching XAUUSD/EURUSD entries.",
+      "status": "pending",
+      "assignee": "reporter",
+      "dependencies": [
+        "t4"
+      ],
+      "attempt": 0,
+      "createdAt": 1788777102366,
+      "updatedAt": 1788777102366,
+      "kind": "integration",
+      "objective": "Produce the full BTCUSD M15 report and register the model in the registry.",
+      "inScope": [
+        "trading_live/research/xauusd-liquidity-sweep/pipeline_v2/reports/metrics/",
+        "configs/models/index.yaml"
+      ],
+      "acceptance": [
+        "Full report written covering: data overview, resampling, events/dataset, model + calibration, test metrics (PR-AUC primary), walk-forward results, score-bucket performance, costs, and any gaps/limitations",
+        "BTCUSD model registered in configs/models/index.yaml (model_id btcusd_v2_h16_*, symbol_origin BTCUSD, paths under btcusd/)",
+        "Report references concrete metric values from the produced artifacts",
+        "XAUUSD/EURUSD registry entries and artifacts left untouched"
+      ]
+    }
+  ],
+  "taskSeq": 5,
+  "phase": "running",
+  "approvedAt": 1788777119183
+}

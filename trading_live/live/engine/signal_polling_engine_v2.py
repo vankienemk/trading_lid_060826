@@ -5,7 +5,8 @@ Orchestrates the per-symbol signal engine loop:
   1. On every tick, scan registered (validated) symbols for new bars
   2. Route candidates through RiskGuard (kill-switch check, position limits)
   3. Add pending signals to SharedAppState for the GUI to display
-  4. For automation levels 1/2, auto-dispatch orders after confirming
+  4. For automation levels 2 (semi) / 3 (full), auto-dispatch orders;
+     level 1 (manual) never auto-sends — the user confirms in the GUI.
 
 M15 new-bar gating: each symbol's engine only runs when a genuinely new
 closed M15 candle has appeared since the last scan (per-symbol last bar
@@ -51,6 +52,20 @@ from live.engine.signal_engine_v2 import (
 )
 
 logger = logging.getLogger("signal_polling_engine")
+
+
+def _to_epoch(dt: Any) -> float:
+    """Convert ``dt`` (a datetime or anything with ``.timestamp()``) to a unix
+    epoch; ``0.0`` when it is missing/unconvertible (``0.0`` = not recorded).
+
+    Naive datetimes are interpreted as local time via ``.timestamp()``, which
+    matches the codebase convention: MT5 terminal-local times round-trip to the
+    same wall clock the GUI shows via ``datetime.fromtimestamp`` in ``fmt_time``.
+    """
+    try:
+        return float(dt.timestamp()) if hasattr(dt, "timestamp") else 0.0
+    except Exception:
+        return 0.0
 
 
 # ---------------------------------------------------------------------------
@@ -134,7 +149,7 @@ class SignalPollingEngine:
       2. Calls the engine to generate signal candidates
       3. Pipes them through RiskGuard
       4. Adds accepted candidates to shared state as PendingSignal
-      5. At automation level 2 (full-auto), dispatches immediately
+      5. At automation level 3 (full-auto), dispatches immediately
 
     Thread-safe: runs its own daemon thread.
     """
@@ -524,6 +539,7 @@ class SignalPollingEngine:
             model_probability=cand.model_prob,
             timestamp=time.time(),
             signal_id=signal_id,
+            entry_time=_to_epoch(cand.entry_time),
         )
 
         # 4. Add to shared state
@@ -543,18 +559,19 @@ class SignalPollingEngine:
             "model_prob": cand.model_prob,
         })
 
-        # 5. Auto-send for automation level >= 1 (semi-auto / full-auto)
+        # 5. Auto-send for automation level >= 2 (semi-auto / full-auto).
+        #    Manual (level 1) NEVER auto-sends — the user confirms in the GUI.
         auto_level = self._state.automation_levels.get(cand.symbol, AutomationLevel(level=0)).level
-        if auto_level >= 1:
+        if auto_level >= 2:
             self._auto_send_order(signal_id, cand, auto_level)
 
     def _auto_send_order(self, signal_id: str, cand: SignalCandidate, level: int) -> None:
-        """Auto-send order for automation level >= 1.
+        """Auto-send order for automation level >= 2.
 
-        Level 1 (semi-auto): short delay to allow user rejection
-        Level 2 (full-auto): immediate dispatch
+        Level 2 (semi-auto): short delay to allow user rejection
+        Level 3 (full-auto): immediate dispatch
         """
-        if level == 1:
+        if level == 2:
             # Short delay — user can still reject via GUI
             time.sleep(3)
 
@@ -587,7 +604,7 @@ class SignalPollingEngine:
                 logger.info(
                     "Auto-order sent: %s %s (order_id=%s)",
                     cand.symbol, cand.direction,
-                    result.get("order_id", "?"),
+                    result.get("event_id", result.get("order_id", "?")),
                 )
                 _log_audit("auto_order_sent", {
                     "signal_id": signal_id,
@@ -597,11 +614,17 @@ class SignalPollingEngine:
                     "success": True,
                 })
             else:
-                logger.warning("Auto-order failed: %s", result.get("error", "unknown"))
+                # send_order stores the real rejection reason in
+                # order_result["error"] (e.g. "Empty MCP response" or a retcode),
+                # not at the top level — surface it so failures are diagnosable.
+                _err = (result.get("error")
+                        or (result.get("order_result") or {}).get("error")
+                        or "unknown")
+                logger.warning("Auto-order failed: %s", _err)
                 _log_audit("auto_order_failed", {
                     "signal_id": signal_id,
                     "symbol": cand.symbol,
-                    "error": result.get("error", "unknown"),
+                    "error": _err,
                 })
         except Exception as e:
             logger.error("Auto-order exception: %s", e)

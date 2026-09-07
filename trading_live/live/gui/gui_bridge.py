@@ -34,6 +34,7 @@ from live.state.shared_app_state_v2 import (
     ModelRegistry,
     get_model_registry,
 )
+from live.engine.execution_layer_v2 import _normalize_direction
 from live.logging.logger_v2 import (
     init_db,
     log_signal,
@@ -62,6 +63,22 @@ class SystemBridge:
         self._running = False
         self._poll_thread: Optional[threading.Thread] = None
         self._mcp_lock = threading.Lock()
+        # Background MCP state-refresh daemon thread. MCP network calls are
+        # moved OFF the GUI thread — a slow/unreachable MCP server was freezing
+        # the whole UI because refresh_state_from_mcp() ran on the main thread.
+        self._mcp_refresh_active = False
+        self._mcp_refresh_thread: Optional[threading.Thread] = None
+
+        # -------------------------------
+        # Cached market bid prices (read by the GUI, written on the MCP
+        # refresh daemon thread).  ``fetch_symbol_prices()`` reads this cache
+        # so the GUI NEVER blocks on a slow/unreachable MCP server — a
+        # synchronous ``get_symbols()``/``get_symbol_info()`` call on the main
+        # thread froze the whole UI for ~2-5s because the MCP client retries
+        # a failed session with a 2s sleep.
+        # -------------------------------
+        self._price_cache: Dict[str, float] = {}
+        self._price_cache_lock = threading.Lock()
 
         # -------------------------------
         # Model Registry — load from YAML index
@@ -132,6 +149,29 @@ class SystemBridge:
             self._signal_engine = None
             syslog("WARNING", "System", "",
                    f"Signal engine polling controller unavailable: {exc}")
+
+    # ------------------------------------------------------------------
+    # Background MCP state refresh (keeps MCP network calls OFF the GUI thread)
+    # ------------------------------------------------------------------
+
+    def _ensure_mcp_refresh(self) -> None:
+        """Start the background MCP-refresh daemon thread (idempotent)."""
+        if self._mcp_refresh_thread is not None and self._mcp_refresh_thread.is_alive():
+            return
+        self._mcp_refresh_active = True
+        self._mcp_refresh_thread = threading.Thread(
+            target=self._mcp_refresh_loop, daemon=True, name="mcp-refresh")
+        self._mcp_refresh_thread.start()
+
+    def _mcp_refresh_loop(self) -> None:
+        """Loop on a daemon thread: refresh state from MCP without blocking the GUI."""
+        interval = float(os.environ.get("MCP_REFRESH_INTERVAL_S", "2") or 2)
+        while self._mcp_refresh_active:
+            try:
+                self.refresh_state_from_mcp()
+            except Exception:
+                pass
+            time.sleep(interval)
 
     @classmethod
     def get_instance(cls, config_path: Optional[str] = None) -> "SystemBridge":
@@ -308,12 +348,32 @@ class SystemBridge:
         except Exception:
             return []
 
-    def fetch_symbol_prices(self) -> Dict[str, float]:
-        """Fetch current bid prices for all market watch symbols from MCP.
+    def _publish_price_cache(self, prices: Dict[str, float]) -> None:
+        """Store the latest bid-price map (called on the MCP refresh thread)."""
+        with self._price_cache_lock:
+            self._price_cache = dict(prices)
 
-        Returns a dict mapping symbol name → bid price (float).
-        Falls back to get_symbol_info() per symbol when get_symbols() does
-        not include bid/ask in its response.
+    def fetch_symbol_prices(self) -> Dict[str, float]:
+        """Return a snapshot of the cached bid-price map.
+
+        Prices are refreshed on the background MCP daemon thread
+        (``refresh_state_from_mcp`` → ``_fetch_prices_blocking``), so this
+        method NEVER blocks the GUI thread on a slow/unreachable MCP server
+        (a synchronous ``get_symbols()`` here froze the whole UI for ~2-5s).
+
+        Returns ``{}`` when no prices have been cached yet (e.g. MCP not
+        connected).  Callers render a placeholder instead of blocking.
+        """
+        with self._price_cache_lock:
+            return dict(self._price_cache)
+
+    def _fetch_prices_blocking(self) -> Dict[str, float]:
+        """Blockingly fetch bid prices from MCP — background-thread ONLY.
+
+        Do NOT call this from the GUI thread: each MCP round-trip (and the
+        client's 2s retry sleep on a failed session) would freeze the UI.
+        The MCP refresh daemon thread calls it and publishes the result into
+        :attr:`_price_cache`.
         """
         if self._exec_layer is None:
             return {}
@@ -355,29 +415,51 @@ class SystemBridge:
     def send_order(
         self, asset: str, direction: str,
         entry_price: float, stop_loss: float, take_profit: float,
-        lot_size: float = 0.01,
+        lot_size: Optional[float] = None,
     ) -> Dict[str, Any]:
         """Send a market order via MCP execution layer.
 
-        Returns a dict with at minimum {"ok": bool, "order_id": str}.
+        HYBRID risk sizing: if ``lot_size`` is None (the default used by the
+        manual GUI path, which has no lot-size input field), the lot is sized
+        from the account risk budget by routing through
+        ``ExecutionLayer.place_order`` (risk-based).  If an explicit
+        ``lot_size`` is supplied by a caller/GUI, it is honored exactly via
+        ``ExecutionLayer.send_order(volume=lot_size)``.
+
+        Returns the execution layer's order-result dict.
         """
         if self._exec_layer is None:
             return {"ok": False, "error": "Execution layer not initialized"}
 
         try:
-            order_direction = "buy" if direction.lower() == "buy" else "sell"
+            order_direction = _normalize_direction(direction)
             with self._mcp_lock:
-                result = self._exec_layer.send_order(
-                    asset=asset,
-                    direction=order_direction,
-                    entry_price=entry_price,
-                    stop_loss=stop_loss,
-                    take_profit=take_profit,
-                    volume=lot_size,
-                )
-            _log("send_order", {"asset": asset, "direction": direction, "result": str(result)})
+                if lot_size is None:
+                    # Risk-sized manual entry (same compute_risk_lot path as the
+                    # automated path).  This is what makes
+                    # ExecutionLayer.place_order live instead of dead code.
+                    result = self._exec_layer.place_order(
+                        symbol=asset,
+                        order_type=order_direction,
+                        price=entry_price,
+                        sl=stop_loss,
+                        tp=take_profit,
+                    )
+                else:
+                    # Explicit lot supplied by a caller/GUI -> honor it exactly.
+                    result = self._exec_layer.send_order(
+                        asset=asset,
+                        direction=order_direction,
+                        entry_price=entry_price,
+                        stop_loss=stop_loss,
+                        take_profit=take_profit,
+                        volume=lot_size,
+                    )
+            _log("send_order", {"asset": asset, "direction": direction,
+                                "lot_size": lot_size, "result": str(result)})
+            vol_desc = "risk-sized" if lot_size is None else f"{lot_size} lots"
             syslog("INFO", "Execution", asset,
-                   f"Order sent via bridge: {direction.upper()} {lot_size} lots @ {entry_price}",
+                   f"Order sent via bridge: {direction.upper()} {vol_desc} @ {entry_price}",
                    extra={"direction": direction, "volume": lot_size,
                           "entry": entry_price, "sl": stop_loss, "tp": take_profit})
             return result
@@ -388,13 +470,18 @@ class SystemBridge:
                    extra={"direction": direction, "error": str(e)})
             return {"ok": False, "error": str(e)}
 
-    def close_position(self, position_id: str) -> Dict[str, Any]:
-        """Close a specific position by ID."""
+    def close_position(self, position_id: str, symbol: str = "") -> Dict[str, Any]:
+        """Close a specific position by ID.
+
+        ``symbol`` is forwarded to the MCP close call as the required safety
+        check (the server rejects an empty/mismatched symbol); the GUI resolves
+        it from the open-position snapshot before calling this.
+        """
         if self._exec_layer is None:
             return {"ok": False, "error": "Execution layer not initialized"}
         try:
-            result = self._exec_layer.close_position(position_id)
-            _log("close_position", {"position_id": position_id, "result": str(result)})
+            result = self._exec_layer.close_position(position_id, symbol=symbol)
+            _log("close_position", {"position_id": position_id, "symbol": symbol, "result": str(result)})
             if result.get("success"):
                 syslog("INFO", "Execution", "", f"Position {position_id} closed via bridge")
             else:
@@ -405,6 +492,50 @@ class SystemBridge:
             syslog("ERROR", "Execution", "", f"Close position {position_id} failed: {e}",
                    extra={"position_id": position_id, "error": str(e)})
             return {"ok": False, "error": str(e)}
+
+    # ------------------------------------------------------------------
+    # Candle data + risk lot (pending-signal inspector)
+    # ------------------------------------------------------------------
+
+    def fetch_candles(self, symbol: str, limit: int = 50) -> Any:
+        """Return the last ~``limit`` closed M15 candles for ``symbol``.
+
+        Wraps the engine's ``MCPCandleSource(self._exec_layer).get_chart_history``
+        adapter and returns the resulting OHLCV ``pandas.DataFrame``
+        (DatetimeIndex, columns ``open/high/low/close/volume``) sliced to the
+        last ``limit`` rows.  Returns an empty DataFrame (never raises) when the
+        execution layer is unavailable or returns no candles, so the inspector
+        chart renders a "No data" placeholder instead of failing.
+        """
+        import pandas as pd
+        if self._exec_layer is None:
+            return pd.DataFrame()
+        try:
+            from live.engine.signal_polling_engine_v2 import MCPCandleSource
+            df = MCPCandleSource(self._exec_layer).get_chart_history(symbol)
+        except Exception as exc:
+            syslog("WARNING", "Execution", symbol, f"fetch_candles failed: {exc}")
+            return pd.DataFrame()
+        if df is None or getattr(df, "empty", True):
+            return pd.DataFrame()
+        return df.iloc[-max(1, int(limit)):]
+
+    def compute_risk_lot(self, asset: str, entry_price: float,
+                         stop_loss: float) -> Optional[float]:
+        """Return the risk-based lot for ``asset`` (or ``None`` when not computable).
+
+        Delegates to ``ExecutionLayer.compute_risk_lot`` so the inspector can
+        pre-fill its auto-lot spinbox with the same risk sizing (which derives
+        from RiskGuard's ``position_size_multiplier``) the automated and
+        risk-sized manual paths use.
+        """
+        if self._exec_layer is None:
+            return None
+        try:
+            lot = self._exec_layer.compute_risk_lot(asset, entry_price, stop_loss)
+            return float(lot) if lot is not None else None
+        except Exception:
+            return None
 
     # ------------------------------------------------------------------
     # Polling / Refresh
@@ -440,8 +571,11 @@ class SystemBridge:
                 )
 
                 # Positions
-                positions = self._exec_layer.get_positions()
-                self.state.set_open_positions(positions)
+                # get_positions() ALREADY publishes OpenPosition objects into
+                # state internally (set_open_positions). Do NOT re-store the raw
+                # dict list it returns — that clobbered the objects with dicts
+                # and made get_snapshot() crash on p.asset (AttributeError).
+                self._exec_layer.get_positions()
 
                 # Symbols — only register if not already in registry,
                 # preserving existing status (e.g. validated from YAML config)
@@ -450,6 +584,13 @@ class SystemBridge:
                     name = s if isinstance(s, str) else s.get("name", "")
                     if name and name not in self.state.symbol_registry:
                         self.state.register_symbol(name, SymbolConfig(name=name, status="pending", active=False))
+
+                # Refresh the cached bid-price map so the GUI can read prices
+                # instantly without blocking the main thread on MCP.
+                if self._exec_layer is not None:
+                    prices = self._fetch_prices_blocking()
+                    if prices:
+                        self._publish_price_cache(prices)
             else:
                 self.state.set_mcp_connection_state("disconnected")
                 self.state.update_mt5_status(connected=False)
@@ -484,6 +625,9 @@ class SystemBridge:
         engine = self._signal_engine
         if engine is None:
             return
+        # Ensure the background MCP refresh thread is running (idempotent) so
+        # state stays current WITHOUT blocking this GUI-timer call.
+        self._ensure_mcp_refresh()
         try:
             if self.state.emergency_stop:
                 # Wake the loop so it observes the emergency stop and halts.
@@ -648,6 +792,7 @@ class SystemBridge:
     def shutdown(self) -> None:
         """Clean shutdown: stop the signal engine, close MCP, stop polling."""
         self._running = False
+        self._mcp_refresh_active = False
         if self._signal_engine is not None:
             try:
                 self._signal_engine.stop()

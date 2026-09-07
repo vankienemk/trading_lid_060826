@@ -103,8 +103,9 @@ class PendingSignal:
     take_profit: float
     rule_score: float                   # 0.0 – 1.0
     model_probability: float            # 0.0 – 1.0
-    timestamp: float                    # unix epoch
+    timestamp: float                    # unix epoch — when the signal was FOUND by the M15 scan
     signal_id: str = ""                 # unique id for UI buttons
+    entry_time: float = 0.0             # unix epoch of the M15 entry-bar open; 0.0 = not recorded
 
 
 @dataclass
@@ -159,6 +160,30 @@ class AutomationLevel:
 # ---------------------------------------------------------------------------
 # Model Registry
 # ---------------------------------------------------------------------------
+
+def _position_field(p: Any, name: str, default: Any = "") -> Any:
+    """Read a position field from an ``OpenPosition`` object OR a raw dict
+    (e.g. an MCP-parsed position).  Keeps ``get_snapshot`` resilient when the
+    positions list ever holds dicts instead of ``OpenPosition`` instances.
+    """
+    if isinstance(p, dict):
+        if name in p:
+            return p.get(name, default)
+        alias = {
+            "asset": ("asset", "symbol"),
+            "direction": ("direction", "type"),
+            "entry_price": ("entry_price", "open_price", "price"),
+            "current_price": ("current_price", "price"),
+            "position_size": ("position_size", "volume", "size"),
+            "open_time": ("open_time", "time"),
+            "position_id": ("position_id", "ticket", "id"),
+        }.get(name, (name,))
+        for key in alias:
+            if key in p:
+                return p.get(key, default)
+        return default
+    return getattr(p, name, default)
+
 
 class ModelRegistry:
     """Thread-safe registry of available models loaded from YAML index.
@@ -615,7 +640,7 @@ class SharedAppState:
 
         Args:
             asset: Symbol name.
-            level: 0=manual, 1=semi-auto, 2=full-auto.
+            level: 1=manual, 2=semi-auto, 3=full-auto.
 
         Persists registry to disk after the change.
         """
@@ -752,20 +777,21 @@ class SharedAppState:
                         "model_probability": s.model_probability,
                         "timestamp": s.timestamp,
                         "signal_id": s.signal_id,
+                        "entry_time": s.entry_time,
                     }
                     for s in self.pending_signals
                 ],
                 "open_positions": [
                     {
-                        "asset": p.asset,
-                        "direction": p.direction,
-                        "entry_price": p.entry_price,
-                        "current_price": p.current_price,
-                        "position_size": p.position_size,
-                        "stop_loss": p.stop_loss,
-                        "take_profit": p.take_profit,
-                        "open_time": p.open_time,
-                        "position_id": p.position_id,
+                        "asset": _position_field(p, "asset"),
+                        "direction": _position_field(p, "direction"),
+                        "entry_price": _position_field(p, "entry_price", 0.0),
+                        "current_price": _position_field(p, "current_price", 0.0),
+                        "position_size": _position_field(p, "position_size", 0.0),
+                        "stop_loss": _position_field(p, "stop_loss", 0.0),
+                        "take_profit": _position_field(p, "take_profit", 0.0),
+                        "open_time": _position_field(p, "open_time", 0.0),
+                        "position_id": _position_field(p, "position_id", ""),
                     }
                     for p in self.open_positions
                 ],

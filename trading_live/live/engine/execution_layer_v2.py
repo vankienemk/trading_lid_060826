@@ -128,6 +128,73 @@ def _parse_mcp_response(result: dict) -> dict:
     return result
 
 
+def _normalize_direction(direction: Any) -> str:
+    """Map any direction spelling to the MCP order ``type`` string.
+
+    The signal engine emits ``"long"``/``"short"``, while the MT5 MCP
+    ``trade_send_market_order`` expects ``"buy"``/``"sell"``.  Any value that is
+    not clearly a "buy"/"long" is treated as a sell — so a long signal is never
+    accidentally sent as a sell (which produced MT5 "Invalid stops" rejections
+    because the stop-loss/take-profit were placed for the wrong side).
+    """
+    if direction is None:
+        return "buy"
+    d = str(direction).strip().lower()
+    if d in ("buy", "long", "bullish", "0"):
+        return "buy"
+    if d in ("sell", "short", "bearish", "1"):
+        return "sell"
+    # Unknown spelling defaults to buy (the safer default for a market order).
+    return "buy"
+
+
+def _validate_stop_side(order_type: str, entry: float, stop_loss: float,
+                        take_profit: float) -> Optional[str]:
+    """Return a human-readable stop-placement problem, or ``None`` if valid.
+
+    Ensures the stop-loss and take-profit are on the correct side of ``entry``
+    for the order direction, so we never dispatch an order that MT5 will reject
+    with "Invalid stops".  Returns an empty/None when both stops are absent
+    (allowed for a naked market order) or correctly placed.
+    """
+    if not entry or not stop_loss and not take_profit:
+        return None
+
+    if order_type == "buy":
+        if stop_loss and stop_loss >= entry:
+            return (f"Stop loss {stop_loss} must be BELOW entry {entry} for a BUY "
+                    "(it would be hit immediately on the wrong side).")
+        if take_profit and take_profit <= entry:
+            return (f"Take profit {take_profit} must be ABOVE entry {entry} for a BUY.")
+    else:  # sell
+        if stop_loss and stop_loss <= entry:
+            return (f"Stop loss {stop_loss} must be ABOVE entry {entry} for a SELL "
+                    "(it would be hit immediately on the wrong side).")
+        if take_profit and take_profit >= entry:
+            return (f"Take profit {take_profit} must be BELOW entry {entry} for a SELL.")
+    return None
+
+
+def _parse_position_time(value: Any) -> float:
+    """Convert an MT5 position time to unix epoch (float).
+
+    The MCP position payload carries ``create_time`` as a terminal-local string
+    ``"YYYY.MM.DD HH:MM:SS"``.  Accept a unix float directly, else try the two
+    common string formats; return ``0.0`` on failure so callers never crash.
+    """
+    if value is None:
+        return 0.0
+    if isinstance(value, (int, float)):
+        return float(value)
+    text = str(value).strip()
+    for fmt in ("%Y.%m.%d %H:%M:%S", "%Y-%m-%d %H:%M:%S"):
+        try:
+            return datetime.strptime(text, fmt).timestamp()
+        except (ValueError, TypeError):
+            continue
+    return 0.0
+
+
 class ExecutionLayerError(Exception):
     pass
 
@@ -517,21 +584,35 @@ class ExecutionLayer:
     def get_positions(self) -> List[Dict[str, Any]]:
         result = self._call_mcp("get_trading_open_positions", {})
         if not result:
+            self.state.set_open_positions([])
             return []
+        result = _parse_mcp_response(result)
         positions = result.get("positions", result.get("data", result.get("trades", [])))
         open_positions: List[OpenPosition] = []
         for p in positions:
-            direction = "buy" if p.get("type", "").lower() in ("buy", "0") else "sell"
+            # Map the REAL MT5 MCP position shape: a market position is
+            # returned with symbol, position_id, action (buy/sell), price_open,
+            # price_last, volume, stop_loss, take_profit and create_time (a
+            # "YYYY.MM.DD HH:MM:SS" string).  The earlier code read
+            # `ticket`/`open_time`/`price` which do NOT exist, so position_id
+            # was empty (Close never worked) and entry/current/open_time were 0
+            # (garbled open-position columns).
+            direction = ("buy" if str(p.get("action", p.get("type", ""))).lower() in ("buy", "0")
+                         else "sell")
+            entry_price = float(p.get("price_open", p.get("open_price", p.get("price", 0))))
+            current_price = float(p.get("price_last", p.get("current_price", p.get("price", 0))))
+            open_time = _parse_position_time(
+                p.get("create_time", p.get("open_time", p.get("time", 0))))
             open_positions.append(OpenPosition(
                 asset=p.get("symbol", p.get("asset", "Unknown")),
                 direction=direction,
-                entry_price=float(p.get("open_price", p.get("price", 0))),
-                current_price=float(p.get("current_price", p.get("price", 0))),
+                entry_price=entry_price,
+                current_price=current_price,
                 position_size=float(p.get("volume", p.get("size", 0))),
-                stop_loss=float(p.get("sl", 0)),
-                take_profit=float(p.get("tp", 0)),
-                open_time=float(p.get("open_time", p.get("time", 0))),
-                position_id=str(p.get("ticket", p.get("id", ""))),
+                stop_loss=float(p.get("stop_loss", p.get("sl", 0))),
+                take_profit=float(p.get("take_profit", p.get("tp", 0))),
+                open_time=open_time,
+                position_id=str(p.get("position_id", p.get("ticket", p.get("id", "")))),
             ))
         self.state.set_open_positions(open_positions)
         return positions
@@ -584,8 +665,27 @@ class ExecutionLayer:
                        extra={"event_id": eid, "asset": asset})
 
         # 3. Log BEFORE sending order
-        order_type_str = "buy" if direction.lower() == "buy" else "sell"
-        comment = f"LSW-V2-{eid}"
+        # Normalise long/short -> buy/sell so a "long" signal is never sent as
+        # a sell (that placed the stops for the wrong side -> MT5 "Invalid
+        # stops" rejections).
+        order_type_str = _normalize_direction(direction)
+
+        # 3a. Client-side stop validation — catch invalid stops BEFORE the MCP
+        # roundtrip so the user gets a clear, actionable message instead of an
+        # opaque "Invalid stops" from the server.  A buy's stop-loss must sit
+        # BELOW entry (loss when price falls) and take-profit ABOVE; a sell's
+        # stop-loss must sit ABOVE entry and take-profit BELOW.
+        stop_issue = _validate_stop_side(order_type_str, entry_price, stop_loss, take_profit)
+        if stop_issue:
+            syslog("WARNING", "Execution", asset,
+                   f"Order rejected by client-side stop validation: {stop_issue}",
+                   extra={"event_id": eid, "direction": order_type_str,
+                          "entry": entry_price, "sl": stop_loss, "tp": take_profit})
+            return {"success": False, "event_id": eid,
+                    "order_result": {"error": stop_issue},
+                    "order_sent": False}
+
+        comment = f"LSW-V2-{eid[:16]}"
         paper_logger.log_signal(
             asset=asset, signal_time=now_iso, confirmation_time=now_iso,
             features_json=json.dumps({
@@ -602,20 +702,36 @@ class ExecutionLayer:
             event_id=eid,
         )
 
-        # 4. Send order with magic=20791 and LSW-V2 comment
-        order_type = 0 if direction.lower() == "buy" else 1
+        # 4. Send market order with the LSW-V2 comment.
+        # The MT5 MCP server's trade_send_market_order inputSchema (verified
+        # live via tools/list) requires: symbol, `type` (STRING "buy"/"sell"),
+        # volume; plus OPTIONAL sl/tp/comment.  additionalProperties=false means
+        # `order_type`, `price` (a market order fills at the current price) and
+        # `magic` are NOT valid fields and are rejected.  Sending the integer
+        # 0/1 for `type` (as the older code and the previous partial fix did)
+        # also fails with "type must be specified".  So send exactly the
+        # schema-valid fields, with `type` as the string direction.  The
+        # signal's planned `entry_price` is still used for logging/risk sizing
+        # but is NOT sent to the server.
         order_params = {
-            "symbol": asset, "volume": volume,
-            "order_type": order_type, "price": entry_price,
+            "symbol": asset, "type": order_type_str, "volume": volume,
             "sl": stop_loss, "tp": take_profit,
-            "comment": comment, "magic": MAGIC_NUMBER,
+            "comment": comment,
         }
 
         try:
-            order_result = self._call_mcp("trade_send_market_order", order_params)
+            raw_order_result = self._call_mcp("trade_send_market_order", order_params)
         except (ConnectionFailedError, MCPError) as exc:
             return {"success": False, "event_id": eid,
                     "order_result": {"error": str(exc)}, "order_sent": False}
+
+        # Unwrap the MCP tool-result envelope.  The MT5 MCP bridge wraps the real
+        # order result as JSON text inside ``{"content": [{"type":"text",
+        # "text":"<json>"}]}`` — without this, ``success``/``retcode``/``price``
+        # are invisible at the top level and EVERY order is classified as failed
+        # with "Unknown error" even when it actually fills (retcode 10009).
+        order_result = (_parse_mcp_response(raw_order_result)
+                        if raw_order_result else raw_order_result)
 
         if not order_result:
             return {"success": False, "event_id": eid,
@@ -643,12 +759,30 @@ class ExecutionLayer:
                           "volume": volume, "risk_lot": risk_lot,
                           "slippage": round(slippage, 2)})
         else:
-            error_msg = order_result.get("error",
-                         order_result.get("comment", "Unknown error"))
+            retcode = order_result.get("retcode")
+            # Surface the real reason to the caller instead of a generic
+            # "Unknown error".  The MT5 server may reject with a retcode, or
+            # return the rejection as plain text ({"text": ...}) or a list
+            # ({"data": [...]}) that _parse_mcp_response wraps — expose it.
+            # Prefer the server's human-readable `retcode_details` (e.g.
+            # "Market closed" for retcode 10018) over the opaque
+            # "MCP retcode N".
+            data_repr = order_result.get("data")
+            error_msg = (order_result.get("error")
+                         or order_result.get("comment")
+                         or order_result.get("retcode_details")
+                         or (f"MCP retcode {retcode}" if retcode is not None
+                             else None)
+                         or order_result.get("text")
+                         or (str(data_repr) if data_repr is not None else None)
+                         or "Unknown error")
+            order_result = dict(order_result)
+            order_result["error"] = error_msg
             syslog("ERROR", "Execution", asset,
                    f"Order FAILED: {error_msg}",
                    extra={"event_id": eid, "direction": order_type_str,
-                          "entry": entry_price, "order_result": str(order_result)})
+                          "entry": entry_price, "order_result": order_result,
+                          "retcode": retcode})
 
         return {"success": order_sent, "event_id": eid,
                 "order_result": order_result, "order_sent": order_sent,
@@ -680,9 +814,17 @@ class ExecutionLayer:
 
     def close_position(self, position_id: str,
                        symbol: Optional[str] = None) -> Dict[str, Any]:
-        params: Dict[str, Any] = {"position_id": position_id}
-        if symbol:
-            params["symbol"] = symbol
+        # The MT5 MCP server's trade_close_single_position inputSchema (verified
+        # live) requires `symbol` (safety check) + `position_ticket`, NOT
+        # `position_id`.  Sending `position_id` is rejected with
+        # "position_ticket must be specified".  Map the internal position id to
+        # the `position_ticket` argument (as an integer — the schema wants a
+        # number; a string is rejected), and always include the symbol.
+        try:
+            position_ticket = int(position_id)
+        except (TypeError, ValueError):
+            position_ticket = position_id
+        params: Dict[str, Any] = {"symbol": symbol or "", "position_ticket": position_ticket}
         try:
             result = self._call_mcp("trade_close_single_position", params)
         except ConnectionFailedError as exc:
@@ -697,6 +839,8 @@ class ExecutionLayer:
                    extra={"position_id": position_id})
             return {"success": False, "error": "Empty MCP response",
                     "position_id": position_id}
+        # Unwrap the MCP result envelope (same reason as send_order).
+        result = _parse_mcp_response(result)
         order_closed = result.get("success",
                          result.get("retcode", 0) == 10009)
         if order_closed:

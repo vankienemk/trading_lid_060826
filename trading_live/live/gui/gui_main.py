@@ -183,8 +183,10 @@ class MainWindow(QMainWindow):
         # runs on its own daemon thread — this never blocks the GUI.
         self._bridge.poll_once()
 
-        # Refresh from MCP in the background
-        snap = self._bridge.refresh_state_from_mcp()
+        # MCP state is refreshed on a background daemon thread
+        # (SystemBridge._mcp_refresh_loop) so we NEVER block the GUI thread on
+        # a slow/unreachable MCP server.  We only read the latest snapshot.
+        snap = self._bridge.state.get_snapshot()
 
         # Update emergency stop display
         e_stop = snap.get("emergency_stop", False)
